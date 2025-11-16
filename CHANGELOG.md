@@ -2,7 +2,30 @@
 
 This file documents all notable changes made to ITFlow.
 
-## [25.11] Changelog
+## [25.11.1] Maint Release
+
+### Fixes
+- Fix broken edit Payment Method.
+- Fix unable to delete Vendor Template.
+- Fix Mail Queue link in flash alert for testing email and sending a quote.
+- Add Show Category Type select if not defined.
+- Add Show Product Type select if not defined.
+- Fix add ticket watcher.
+- Fix if Client isn't assigned to a ticket dont show client view.
+- Fix missing session client id check when paying an invoice from client portal.
+- Update Composer Webklex-IMAP library dependency symfony/http-foundation from 7.3.3 to 7.3.7 to fix security related issues.
+- Add back delete Payment provider the database will handle cascade deletes to saved cards, recurring payments and client payment provider reference.  
+
+### Added / Changed
+- [Feature] Added Asset Tags.
+- [Feature] Added Quick Add Links to most side bar navs example quickly add a client from sidebar.
+- Migrate ticket template add to ajax modal.
+- Add TOTP secret to Client Export PDF in Credential section.
+- Add UserID on hover in users listing.
+- Merge ticket now redirects to the new ticket details page.
+- [Feature] Add Pay via saved card under invoice Listings.
+
+## [25.11] Stable
 
 ### Deprecation Notice:
 - **Outdated CRON Scripts**: The following scripts are removed.
