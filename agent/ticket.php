@@ -39,7 +39,6 @@ if (isset($_GET['ticket_id'])) {
         LEFT JOIN ticket_statuses ON ticket_status = ticket_status_id
         LEFT JOIN categories ON ticket_category = category_id
         WHERE ticket_id = $ticket_id
-        
         LIMIT 1"
     );
 
@@ -358,9 +357,11 @@ if (isset($_GET['ticket_id'])) {
              <li class="breadcrumb-item">
                 <a href="tickets.php">All Tickets</a>
             </li>
+            <?php if ($client_url) { ?>
             <li class="breadcrumb-item">
                 <a href="tickets.php?client_id=<?php echo $client_id; ?>"><?= $client_name ?> Tickets</a>
             </li>
+            <?php } ?>
             <li class="breadcrumb-item active"><?php echo "$ticket_prefix$ticket_number";?></li>
         </ol>
 
