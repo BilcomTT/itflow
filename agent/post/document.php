@@ -703,6 +703,9 @@ if (isset($_POST['bulk_delete_documents'])) {
             // Delete all versions associated with the master document
             mysqli_query($mysqli,"DELETE FROM document_versions WHERE document_version_document_id = $document_id");
 
+            // Delete uploads/document/$document_id if exists
+            removeDirectory($_SERVER['DOCUMENT_ROOT'] . "/uploads/documents/" . $document_id);
+
             logAction("Document", "Delete", "$session_name deleted document $document_name and all versions", $client_id);  
 
         }
