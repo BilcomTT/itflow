@@ -1752,3 +1752,39 @@ function saveBase64Images(string $html, string $baseFsPath, string $baseWebPath,
 
     return $html;
 }
+
+function cleanupUnusedImages(string $html, string $folderFsPath, string $folderWebPath) {
+
+    $folderFsPath  = rtrim($folderFsPath, '/\\') . '/';
+    $folderWebPath = rtrim($folderWebPath, '/\\') . '/';
+
+    if (!is_dir($folderFsPath)) {
+        return; // no folder = nothing to delete
+    }
+
+    // 1. Get all files currently on disk
+    $filesOnDisk = glob($folderFsPath . "*");
+
+    // 2. Find all <img src="">
+    preg_match_all('/<img[^>]+src=["\']([^"\']+)["\']/i', $html, $matches);
+    $htmlImagePaths = $matches[1] ?? [];
+
+    // Normalize paths: keep only filenames belonging to this template folder
+    $referencedFiles = [];
+
+    foreach ($htmlImagePaths as $src) {
+        if (strpos($src, $folderWebPath) !== false) {
+            $filename = basename($src);
+            $referencedFiles[] = $filename;
+        }
+    }
+
+    // 3. Delete any physical file not referenced in the HTML
+    foreach ($filesOnDisk as $filePath) {
+        $filename = basename($filePath);
+
+        if (!in_array($filename, $referencedFiles)) {
+            unlink($filePath);
+        }
+    }
+}

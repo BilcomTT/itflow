@@ -40,18 +40,24 @@ if (isset($_POST['edit_document_template'])) {
     $name = sanitizeInput($_POST['name']);
     $description = sanitizeInput($_POST['description']);
 
-    $processed_content = mysqli_escape_string(
-        $mysqli,
-        saveBase64Images(
-            $_POST['content'],
-            $_SERVER['DOCUMENT_ROOT'] . "/uploads/document_templates/",
-            "uploads/document_templates/",
-            $document_template_id
-        )
+    $processed_content = saveBase64Images(
+        $_POST['content'],
+        $_SERVER['DOCUMENT_ROOT'] . "/uploads/document_templates/",
+        "uploads/document_templates/",
+        $document_template_id
+    );
+
+    $processed_content_escaped = mysqli_escape_string($mysqli, $processed_content);
+
+    // CLEAN UP unused images
+    cleanupUnusedImages(
+        $processed_content,
+        $_SERVER['DOCUMENT_ROOT'] . "/uploads/document_templates/" . $document_template_id,
+        "/uploads/document_templates/" . $document_template_id
     );
 
     // Document edit query
-    mysqli_query($mysqli,"UPDATE document_templates SET document_template_name = '$name', document_template_description = '$description', document_template_content = '$processed_content', document_template_updated_by = $session_user_id WHERE document_template_id = $document_template_id");
+    mysqli_query($mysqli,"UPDATE document_templates SET document_template_name = '$name', document_template_description = '$description', document_template_content = '$processed_content_escaped', document_template_updated_by = $session_user_id WHERE document_template_id = $document_template_id");
 
     logAction("Document Template", "Edit", "$session_name edited document template $name", 0, $document_template_id);
 
