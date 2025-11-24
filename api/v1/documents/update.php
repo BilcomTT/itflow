@@ -17,7 +17,17 @@ if (!empty($document_id)) {
     // Variable assignment from POST - assigning the current database value if a value is not provided
     require_once 'document_model.php';
 
-    $update_insert_sql = mysqli_query($mysqli,"UPDATE documents SET document_name = '$name', document_description = '$description', document_content = '$content', document_content_raw = '$content_raw', document_folder_id = $folder, document_updated_by = 0, document_client_id = $client_id");
+    $processed_content = mysqli_escape_string(
+        $mysqli,
+        saveBase64Images(
+            $content,
+            $_SERVER['DOCUMENT_ROOT'] . "/uploads/documents/",
+            "uploads/documents/",
+            $document_id
+        )
+    );
+
+    $update_insert_sql = mysqli_query($mysqli,"UPDATE documents SET document_name = '$name', document_description = '$description', document_content = '$processed_content', document_content_raw = '$content_raw', document_folder_id = $folder, document_updated_by = 0, document_client_id = $client_id");
 
     // Logging
     logAction("Document", "Edit", "$name via API ($api_key_name)", $client_id, $document_id);

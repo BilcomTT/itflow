@@ -1075,20 +1075,32 @@ if (isset($_POST['client_add_document'])) {
 
     $document_name = sanitizeInput($_POST['document_name']);
     $document_description = sanitizeInput($_POST['document_description']);
-    $document_content = mysqli_real_escape_string($mysqli, $_POST['document_content']);
     $document_content_raw = sanitizeInput($document_name . " " . strip_tags($_POST['document_content']));
 
     // Create document
     mysqli_query($mysqli, "INSERT INTO documents SET 
         document_name = '$document_name', 
         document_description = '$document_description', 
-        document_content = '$document_content', 
+        document_content = '', 
         document_content_raw = '$document_content_raw', 
         document_client_visible = 1, 
         document_client_id = $session_client_id, 
         document_created_by = $session_contact_id");
 
     $document_id = mysqli_insert_id($mysqli);
+
+    $processed_content = mysqli_escape_string(
+        $mysqli,
+        saveBase64Images(
+            $_POST['document_content'],
+            $_SERVER['DOCUMENT_ROOT'] . "/uploads/documents/",
+            "uploads/documents/",
+            $document_id
+        )
+    );
+
+    // Document update content
+    mysqli_query($mysqli,"UPDATE documents SET document_content = '$processed_content' WHERE document_id = $document_id");
 
     logAction("Document", "Create", "Client contact $session_contact_name created document $document_name", $session_client_id, $document_id);
 
