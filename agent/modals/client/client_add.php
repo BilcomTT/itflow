@@ -207,7 +207,7 @@ ob_start();
                     </div>
                 </div>
 
-                
+
                 <label>Location Phone / <span class="text-secondary">Extension</span></label>
                 <div class="form-row">
                     <div class="col-9">
@@ -228,7 +228,7 @@ ob_start();
                     </div>
                 </div>
 
-                <label>Location Fax</label>    
+                <label>Location Fax</label>
                 <div class="form-row">
                     <div class="col-9">
                         <div class="form-group">
@@ -287,7 +287,7 @@ ob_start();
                     </div>
                 </div>
 
-                <label>Mobile</label>    
+                <label>Mobile</label>
                 <div class="form-row">
                     <div class="col-9">
                         <div class="form-group">
@@ -324,7 +324,7 @@ ob_start();
                             <div class="input-group-prepend">
                                 <span class="input-group-text"><i class="fa fa-fw fa-clock"></i></span>
                             </div>
-                            <input type="text" class="form-control" inputmode="numeric" pattern="[0-9]*\.?[0-9]{0,2}" name="rate" placeholder="0.00" value="<?php echo "$config_default_hourly_rate"; ?>">
+                            <input type="text" class="form-control" inputmode="decimal" pattern="[0-9]*\.?[0-9]{0,2}" name="rate" placeholder="0.00" value="<?php echo "$config_default_hourly_rate"; ?>">
                         </div>
                     </div>
 

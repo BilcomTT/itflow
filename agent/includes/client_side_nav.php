@@ -233,25 +233,12 @@
                             </a>
                         </li>
 
-                        <li class="nav-item">
-                            <a href="/agent/documents.php?client_id=<?php echo $client_id; ?>" class="nav-link <?php if (basename($_SERVER["PHP_SELF"]) == "documents.php" || basename($_SERVER["PHP_SELF"]) == "document_details.php") { echo "active"; } ?>">
-                                <i class="nav-icon fas fa-folder"></i>
-                                <p>
-                                    Documents
-                                    <?php
-                                    if ($num_documents > 0) { ?>
-                                        <span class="right badge text-light"><?php echo $num_documents; ?></span>
-                                    <?php } ?>
-                                </p>
-                            </a>
-                        </li>
-
                     <?php } ?>
 
                     <!-- Allow files even without module_support for things like contracts, etc. ) -->
                     <li class="nav-item">
                         <a href="/agent/files.php?client_id=<?php echo $client_id; ?>" class="nav-link <?php if (basename($_SERVER["PHP_SELF"]) == "files.php") { echo "active"; } ?>">
-                            <i class="nav-icon fas fa-paperclip"></i>
+                            <i class="nav-icon fas fa-folder"></i>
                             <p>
                                 Files
                                 <?php

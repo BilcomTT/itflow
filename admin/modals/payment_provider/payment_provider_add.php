@@ -59,7 +59,7 @@ ob_start();
                 <div class="input-group-prepend">
                     <span class="input-group-text"><i class="fa fa-fw fa-shopping-cart"></i></span>
                 </div>
-                <input type="text" class="form-control" inputmode="numeric" pattern="[0-9]*\.?[0-9]{0,2}" name="threshold" placeholder="1000.00">
+                <input type="text" class="form-control" inputmode="decimal" pattern="[0-9]*\.?[0-9]{0,2}" name="threshold" placeholder="1000.00">
             </div>
             <small class="form-text text-muted">Will not show as an option at Checkout if invoice amount is above this number, 0 disables the threshold check.</small>
         </div>
@@ -79,7 +79,7 @@ ob_start();
                 <div class="input-group-prepend">
                     <span class="input-group-text"><i class="fa fa-fw fa-percent"></i></span>
                 </div>
-                <input type="text" class="form-control" inputmode="numeric" pattern="[0-9]*\.?[0-9]{0,2}" name="percentage_fee" placeholder="Enter Percentage">
+                <input type="text" class="form-control" inputmode="decimal" pattern="[0-9]*\.?[0-9]{0,2}" name="percentage_fee" placeholder="Enter Percentage">
             </div>
             <small class="form-text text-muted">See <a href="https://stripe.com/pricing" target="_blank">here <i class="fas fa-fw fa-external-link-alt"></i></a> for the latest Stripe Fees.</small>
         </div>
@@ -90,7 +90,7 @@ ob_start();
                 <div class="input-group-prepend">
                     <span class="input-group-text"><i class="fa fa-fw fa-shopping-cart"></i></span>
                 </div>
-                <input type="text" class="form-control" inputmode="numeric" pattern="[0-9]*\.?[0-9]{0,3}" name="flat_fee" placeholder="0.030">
+                <input type="text" class="form-control" inputmode="decimal" pattern="[0-9]*\.?[0-9]{0,3}" name="flat_fee" placeholder="0.030">
             </div>
             <small class="form-text text-muted">See <a href="https://stripe.com/pricing" target="_blank">here <i class="fas fa-fw fa-external-link-alt"></i></a> for the latest Stripe Fees.</small>
         </div>

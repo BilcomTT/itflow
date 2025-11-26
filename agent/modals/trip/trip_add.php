@@ -14,7 +14,7 @@ ob_start();
     </button>
 </div>
 <form action="post.php" method="post" autocomplete="off">
-    
+
     <div class="modal-body">
 
         <div class="form-row">
@@ -34,7 +34,7 @@ ob_start();
                     <div class="input-group-prepend">
                         <span class="input-group-text"><i class="fa fa-fw fa-bicycle"></i></span>
                     </div>
-                    <input type="text" class="form-control" inputmode="numeric" pattern="[0-9]*\.?[0-9]{0,1}" name="miles" placeholder="0.0" required autofocus>
+                    <input type="text" class="form-control" inputmode="decimal" pattern="[0-9]*\.?[0-9]{0,1}" name="miles" placeholder="0.0" required autofocus>
                     <div class="input-group-append">
                         <div class="input-group-text">
                             <input type="checkbox" name="roundtrip" value="1">

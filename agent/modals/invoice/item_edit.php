@@ -27,7 +27,7 @@ ob_start();
 <form action="post.php" method="post" autocomplete="off">
     <input type="hidden" name="item_id" value="<?php echo $item_id; ?>">
     <input type="hidden" name="product_id" value="<?php echo $product_id; ?>">
-    
+
     <div class="modal-body">
         <div class="form-group">
             <label>Item <strong class="text-danger">*</strong></label>
@@ -47,7 +47,7 @@ ob_start();
                         <div class="input-group-prepend">
                             <span class="input-group-text"><i class="fa fa-fw fa-balance-scale"></i></span>
                         </div>
-                        <input type="text" class="form-control" inputmode="numeric" pattern="[0-9]*\.?[0-9]{0,2}" name="qty" value="<?php echo number_format($item_quantity, 2); ?>" placeholder="0.00" required>
+                        <input type="text" class="form-control" inputmode="decimal" pattern="[0-9]*\.?[0-9]{0,2}" name="qty" value="<?php echo number_format($item_quantity, 2); ?>" placeholder="0.00" required>
                     </div>
                 </div>
             </div>
@@ -59,7 +59,7 @@ ob_start();
                         <div class="input-group-prepend">
                             <span class="input-group-text"><i class="fa fa-fw fa-dollar-sign"></i></span>
                         </div>
-                        <input type="text" class="form-control" inputmode="numeric" pattern="-?[0-9]*\.?[0-9]{0,2}" name="price" value="<?php echo number_format($item_price, 2, '.', ''); ?>" placeholder="0.00" required>
+                        <input type="text" class="form-control" inputmode="decimal" pattern="-?[0-9]*\.?[0-9]{0,2}" name="price" value="<?php echo number_format($item_price, 2, '.', ''); ?>" placeholder="0.00" required>
                     </div>
                 </div>
             </div>
@@ -80,8 +80,8 @@ ob_start();
                 </div>
                 <select class="form-control select2" name="tax_id" required>
                     <option value="0">No Tax</option>
-                    <?php 
-                        $taxes_sql = mysqli_query($mysqli, "SELECT * FROM taxes WHERE (tax_archived_at > '$item_created_at' OR tax_archived_at IS NULL) ORDER BY tax_name ASC"); 
+                    <?php
+                        $taxes_sql = mysqli_query($mysqli, "SELECT * FROM taxes WHERE (tax_archived_at > '$item_created_at' OR tax_archived_at IS NULL) ORDER BY tax_name ASC");
                         while ($row = mysqli_fetch_array($taxes_sql)) {
                             $tax_id_select = intval($row['tax_id']);
                             $tax_name = nullable_htmlentities($row['tax_name']);

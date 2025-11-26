@@ -102,7 +102,7 @@ ob_start();
                 <div class='input-group-prepend'>
                     <span class='input-group-text'><i class='fa fa-fw fa-dollar-sign'></i></span>
                 </div>
-                <input type='text' class='form-control' inputmode="numeric" pattern="-?[0-9]*\.?[0-9]{0,2}" name='recurring_invoice_discount' placeholder='0.00' value="<?php echo number_format($recurring_invoice_discount, 2, '.', ''); ?>">
+                <input type='text' class='form-control' inputmode="decimal" pattern="-?[0-9]*\.?[0-9]{0,2}" name='recurring_invoice_discount' placeholder='0.00' value="<?php echo number_format($recurring_invoice_discount, 2, '.', ''); ?>">
             </div>
         </div>
 

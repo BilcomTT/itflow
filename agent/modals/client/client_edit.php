@@ -181,7 +181,7 @@ ob_start();
                             <div class="input-group-prepend">
                                 <span class="input-group-text"><i class="fa fa-fw fa-clock"></i></span>
                             </div>
-                            <input type="text" class="form-control" inputmode="numeric"
+                            <input type="text" class="form-control" inputmode="decimal"
                                    pattern="[0-9]*\.?[0-9]{0,2}" name="rate" placeholder="0.00"
                                    value="<?php echo number_format($client_rate, 2, '.', ''); ?>">
                         </div>

@@ -3,7 +3,7 @@
 // If client_id is in URI then show client Side Bar and client header
 if (isset($_GET['client_id'])) {
     require_once "includes/inc_all_client.php";
-} else { 
+} else {
     require_once "includes/inc_all.php";
 }
 
@@ -292,7 +292,7 @@ if (isset($_GET['recurring_invoice_id'])) {
                                             <div class="btn-group">
                                                 <button type="button" class="btn btn-sm btn-link drag-handle">
                                                     <i class="fas fa-bars text-muted"></i>
-                                                </button>  
+                                                </button>
                                                 <div class="dropdown">
                                                     <button class="btn btn-sm btn-light" type="button" data-toggle="dropdown">
                                                         <i class="fas fa-ellipsis-v"></i>
@@ -340,10 +340,10 @@ if (isset($_GET['recurring_invoice_id'])) {
                                                 <textarea class="form-control"  rows="2" id="desc" name="description" placeholder="Enter a Description"></textarea>
                                             </td>
                                             <td>
-                                                <input type="text" inputmode="numeric" pattern="[0-9]*\.?[0-9]{0,2}" class="form-control" style="text-align: center;" id="qty" name="qty" placeholder="Qty">
+                                                <input type="text" inputmode="decimal" pattern="[0-9]*\.?[0-9]{0,2}" class="form-control" style="text-align: center;" id="qty" name="qty" placeholder="Qty">
                                             </td>
                                             <td>
-                                                <input type="text" inputmode="numeric" pattern="[0-9]*\.?[0-9]{0,2}" class="form-control" style="text-align: right;" id="price" name="price" placeholder="Price (<?php echo $recurring_invoice_currency_code; ?>)">
+                                                <input type="text" inputmode="decimal" pattern="[0-9]*\.?[0-9]{0,2}" class="form-control" style="text-align: right;" id="price" name="price" placeholder="Price (<?php echo $recurring_invoice_currency_code; ?>)">
                                             </td>
                                             <td>
                                                 <select class="form-control" name="tax_id" id="tax" required>

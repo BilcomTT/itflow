@@ -382,10 +382,10 @@ if (isset($_GET['quote_id'])) {
                                                 <textarea class="form-control" rows="2" name="description" id="desc" placeholder="Enter a Description"></textarea>
                                             </td>
                                             <td>
-                                                <input type="text" class="form-control" inputmode="numeric" pattern="-?[0-9]*\.?[0-9]{0,2}" id="qty" style="text-align: center;" name="qty" placeholder="Qty">
+                                                <input type="text" class="form-control" inputmode="decimal" pattern="-?[0-9]*\.?[0-9]{0,2}" id="qty" style="text-align: center;" name="qty" placeholder="Qty">
                                             </td>
                                             <td>
-                                                <input type="text" class="form-control" inputmode="numeric" pattern="-?[0-9]*\.?[0-9]{0,2}" id="price" style="text-align: right;" name="price" placeholder="Price (<?php echo $quote_currency_code; ?>)">
+                                                <input type="text" class="form-control" inputmode="decimal" pattern="-?[0-9]*\.?[0-9]{0,2}" id="price" style="text-align: right;" name="price" placeholder="Price (<?php echo $quote_currency_code; ?>)">
                                             </td>
                                             <td>
                                                 <select class="form-control select2" id="tax" name="tax_id" required>
@@ -439,7 +439,7 @@ if (isset($_GET['quote_id'])) {
                 </div>
 
                 <div class="col-sm-3 offset-sm-2">
-                    
+
                     <table class="table table-hover mb-0">
                         <tbody>
                             <tr>
@@ -464,7 +464,7 @@ if (isset($_GET['quote_id'])) {
                             </tr>
                         </tbody>
                     </table>
-                    
+
                 </div>
             </div>
 

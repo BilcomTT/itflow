@@ -98,7 +98,7 @@ ob_start();
             <li class="nav-item">
                 <a class="nav-link" data-toggle="pill" href="#pills-create-invoice"><i class="fa fa-fw fa-check mr-2"></i>Create New Invoice</a>
             </li>
-            
+
         </ul>
 
         <hr>
@@ -108,7 +108,7 @@ ob_start();
         <div class="tab-content">
 
                 <?php
-            
+
                 if (mysqli_num_rows($sql_invoices) > 0) { ?>
 
                 <div class="tab-pane fade <?php if (mysqli_num_rows($sql_invoices) > 0) { echo "active show"; } ?>" id="pills-add-to-invoice">
@@ -146,7 +146,7 @@ ob_start();
 
                 <div class="row">
                     <div class="col-sm-6">
-                
+
                         <div class="form-group">
                             <label>Invoice Date <strong class="text-danger">*</strong></label>
                             <div class="input-group">
@@ -203,7 +203,7 @@ ob_start();
                 </div>
 
             </div>
-            
+
         </div>
 
         <div class="form-group">
@@ -260,7 +260,7 @@ ob_start();
                         <div class="input-group-prepend">
                             <span class="input-group-text"><i class="fa fa-fw fa-balance-scale"></i></span>
                         </div>
-                        <input type="text" class="form-control" inputmode="numeric" pattern="-?[0-9]*\.?[0-9]{0,2}" name="qty" value="<?php echo roundToNearest15($ticket_total_reply_time); ?>" required>
+                        <input type="text" class="form-control" inputmode="decimal" pattern="-?[0-9]*\.?[0-9]{0,2}" name="qty" value="<?php echo roundToNearest15($ticket_total_reply_time); ?>" required>
                     </div>
                     <small class="form-text text-muted">
                         Based off Ticket time spent <strong><?= $ticket_total_reply_time ?></strong> in 15 Min Increments rounded up.
@@ -277,7 +277,7 @@ ob_start();
                         <div class="input-group-prepend">
                             <span class="input-group-text"><i class="fa fa-fw fa-dollar-sign"></i></span>
                         </div>
-                        <input type="text" class="form-control" inputmode="numeric" pattern="-?[0-9]*\.?[0-9]{0,2}" name="price" value="<?php echo number_format($client_rate, 2, '.', ''); ?>" required>
+                        <input type="text" class="form-control" inputmode="decimal" pattern="-?[0-9]*\.?[0-9]{0,2}" name="price" value="<?php echo number_format($client_rate, 2, '.', ''); ?>" required>
                     </div>
                     <small class="form-text text-muted">
                         Based off Hourly Client rate of <strong><?= numfmt_format_currency($currency_format, $client_rate, $session_company_currency); ?></strong>
