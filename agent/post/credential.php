@@ -456,6 +456,8 @@ if (isset($_POST["import_credentials_csv"])) {
 if (isset($_GET['download_credentials_csv_template'])) {
 
     $delimiter = ",";
+    $enclosure = '"';
+    $escape    = '\\';
     $filename = "Credentials-Template.csv";
 
     //create a file pointer
@@ -463,7 +465,7 @@ if (isset($_GET['download_credentials_csv_template'])) {
 
     //set column headers
     $fields = array('Name', 'Description', 'Username', 'Password', 'TOTP', 'URI');
-    fputcsv($f, $fields, $delimiter);
+    fputcsv($f, $fields, $delimiter, $enclosure, $escape);
 
     //move back to beginning of file
     fseek($f, 0);

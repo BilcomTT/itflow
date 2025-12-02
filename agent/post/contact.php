@@ -1305,7 +1305,10 @@ if (isset($_POST["import_contacts_csv"])) {
 }
 
 if (isset($_GET['download_contacts_csv_template'])) {
+
     $delimiter = ",";
+    $enclosure = '"';
+    $escape    = '\\';
     $filename = "Contacts-Template.csv";
 
     //create a file pointer
@@ -1322,7 +1325,7 @@ if (isset($_GET['download_contacts_csv_template'])) {
         'Mobile Phone        ',
         'Office Location     '
     );
-    fputcsv($f, $fields, $delimiter);
+    fputcsv($f, $fields, $delimiter, $enclosure, $escape);
 
     //move back to beginning of file
     fseek($f, 0);

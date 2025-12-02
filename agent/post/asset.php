@@ -995,6 +995,8 @@ if (isset($_GET['download_assets_csv_template'])) {
     $client_name = $row['client_name'];
 
     $delimiter = ",";
+    $enclosure = '"';
+    $escape    = '\\';
     $filename = strtoAZaz09($client_name) . "-Assets-Template.csv";
 
     //create a file pointer
@@ -1002,7 +1004,7 @@ if (isset($_GET['download_assets_csv_template'])) {
 
     //set column headers
     $fields = array('Name', 'Description', 'Type', 'Make', 'Model', 'Serial', 'OS', 'Purchase Date', 'Assigned To', 'Location', 'Physical Location', 'Notes');
-    fputcsv($f, $fields, $delimiter);
+    fputcsv($f, $fields, $delimiter, $enclosure, $escape);
 
     //move back to beginning of file
     fseek($f, 0);
@@ -1619,6 +1621,8 @@ if (isset($_GET['download_client_asset_interfaces_csv_template'])) {
     $asset_name = $row['asset_name'];
 
     $delimiter = ",";
+    $enclosure = '"';
+    $escape    = '\\';
     $filename = strtoAZaz09($asset_name) . "-Asset-Interfaces-Template.csv";
 
     //create a file pointer
@@ -1626,7 +1630,7 @@ if (isset($_GET['download_client_asset_interfaces_csv_template'])) {
 
     //set column headers
     $fields = array('Name', 'Description', 'Type', 'MAC', 'IP', 'NAT IP', 'IPv6', 'Network');
-    fputcsv($f, $fields, $delimiter);
+    fputcsv($f, $fields, $delimiter, $enclosure, $escape);
 
     //move back to beginning of file
     fseek($f, 0);
