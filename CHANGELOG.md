@@ -2,6 +2,31 @@
 
 This file documents all notable changes made to ITFlow.
 
+## [25.12] Stable Release
+
+### Major Changes
+- Consolidated "Files" and "Documents" into a single section called **Files**.
+
+### Bug Fixes
+- Resolved issue with updating asset notes in asset details.
+- Fixed problem with bulk ticket merging.
+- Corrected issue where decimal inputs (e.g., price, cost) weren’t displaying on iPhones in certain forms.
+- Added CSV escaping to the sample export data in areas where a sample CSV template is provided.
+
+### New Features & Updates
+- Introduced automatic subject-based ticket merging/reply detection. Now, if an email comes from a known contact or domain and the subject matches 95% of a ticket opened in the last 7 days, it will be merged automatically.
+- Added `cleanInput` function to sanitize data before inserting it into the database when using MySQLi prepared statements.
+- Migrated client post functionality to use MySQLi prepared statements.
+- Updated payment method post functionality to use MySQLi prepared statements.
+- Implemented `saveBase64Images()` to convert base64-encoded `<img>` tags into actual image files stored under `/uploads/<module>/<id>/` with secure filenames. Added wrapper functions, and updated document creation to use processed image paths.
+- For new documents and document templates, images are now stored in `/uploads/documents/$document_id` instead of being stored as base64 in the database, using the `saveBase64Images()` function.
+- UI/UX improvements made to the document details page.
+- Removed sidebar quick-add options.
+- Created new folders in the uploads directory: `documents`, `document_templates`, and `recurring_tickets`.
+- Reworked the bulk action function to pass the name arrays, instead of a generic `selected_ids` array. This allows multiple bulk name arrays to be passed at once, currently used for the new file-document merge.
+- Big task: Converted the remaining modals to use the new `ajax-modal` system, enabling more flexible flow expansion going forward.
+- Mail queue: Added a `--no-mx-validation` flag to bypass recipient domain MX validation.
+
 ## [25.11.1] Maint Release
 
 ### Fixes
