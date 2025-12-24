@@ -154,6 +154,12 @@
                     </a>
                 </li>
                 <li class="nav-item">
+                    <a href="/admin/webhooks.php" class="nav-link <?php echo (basename($_SERVER['PHP_SELF']) == 'webhooks.php' ? 'active' : ''); ?>">
+                        <i class="nav-icon fas fa-link"></i>
+                        <p>Webhooks</p>
+                    </a>
+                </li>
+                <li class="nav-item">
                     <a href="/admin/audit_log.php" class="nav-link <?php echo (basename($_SERVER['PHP_SELF']) == 'audit_log.php' ? 'active' : ''); ?>">
                         <i class="nav-icon fas fa-history"></i>
                         <p>Audit Logs</p>
