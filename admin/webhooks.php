@@ -1,493 +1,249 @@
 <?php
-require_once "../includes/inc_all_admin.php";
 
-// Check if the user has permission to access this page
-if (!hasPermission('admin', $_SESSION['user_role_id'])) {
-    header("Location: /agent/$config_start_page");
-    exit();
-}
+// Default Column Sortby Filter
+$sort = "webhook_name";
+$order = "ASC";
 
-// Handle actions (e.g., enable/disable webhooks)
-if (isset($_POST['action'])) {
-    $action = sanitizeInput($_POST['action']);
-    $webhook_id = intval($_POST['webhook_id']);
+require_once "includes/inc_all_admin.php";
 
-    if ($action == 'enable' || $action == 'disable') {
-        $status = $action == 'enable' ? 1 : 0;
-        mysqli_query($mysqli, "UPDATE webhooks SET webhook_enabled = $status WHERE webhook_id = $webhook_id");
-        logAction("Webhook", "Updated", "Webhook $webhook_id status changed to $action");
-    } elseif ($action == 'delete') {
-        mysqli_query($mysqli, "DELETE FROM webhooks WHERE webhook_id = $webhook_id");
-        logAction("Webhook", "Deleted", "Webhook $webhook_id deleted");
-    }
+// Include webhook functions
+// Webhook functions are now merged into functions.php
 
-    header("Location: webhooks.php");
-    exit();
-}
+$sql = mysqli_query(
+    $mysqli,
+    "SELECT SQL_CALC_FOUND_ROWS w.*, c.client_name,
+    (SELECT COUNT(*) FROM webhook_logs wl WHERE wl.webhook_log_webhook_id = w.webhook_id AND wl.webhook_log_status = 'success') as success_count,
+    (SELECT COUNT(*) FROM webhook_logs wl WHERE wl.webhook_log_webhook_id = w.webhook_id AND wl.webhook_log_status = 'failed') as failed_count
+    FROM webhooks w
+    LEFT JOIN clients c ON w.webhook_client_id = c.client_id
+    WHERE (w.webhook_name LIKE '%$q%' OR w.webhook_url LIKE '%$q%' OR w.webhook_description LIKE '%$q%')
+    ORDER BY $sort $order LIMIT $record_from, $record_to"
+);
 
-// Get all webhooks
-$webhooks = [];
-$result = mysqli_query($mysqli, "SELECT * FROM webhooks ORDER BY webhook_name ASC");
-while ($row = mysqli_fetch_assoc($result)) {
-    $webhooks[] = $row;
-}
+$num_rows = mysqli_fetch_row(mysqli_query($mysqli, "SELECT FOUND_ROWS()"));
 
-// Get webhook statistics
-$stats = [];
-foreach ($webhooks as $webhook) {
-    $webhook_id = $webhook['webhook_id'];
-    $stats[$webhook_id] = getWebhookStats($webhook_id);
-}
-
-// Get clients for filtering
-$clients = [];
-$result = mysqli_query($mysqli, "SELECT client_id, client_name FROM clients WHERE client_archived_at IS NULL ORDER BY client_name ASC");
-while ($row = mysqli_fetch_assoc($result)) {
-    $clients[] = $row;
-}
-
-// Get client tags for filtering
-$client_tags = [];
-$result = mysqli_query($mysqli, "SELECT tag_id, tag_name FROM tags WHERE tag_type = 'client' ORDER BY tag_name ASC");
-while ($row = mysqli_fetch_assoc($result)) {
-    $client_tags[] = $row;
-}
-
-// Handle filtering
-$filter_client_id = isset($_GET['client_id']) ? intval($_GET['client_id']) : 0;
-$filter_tag_id = isset($_GET['tag_id']) ? intval($_GET['tag_id']) : 0;
-
-if ($filter_client_id > 0) {
-    $webhooks = array_filter($webhooks, function($webhook) use ($filter_client_id) {
-        return $webhook['webhook_client_id'] == $filter_client_id;
-    });
-}
-
-if ($filter_tag_id > 0) {
-    $webhooks = array_filter($webhooks, function($webhook) use ($filter_tag_id) {
-        return $webhook['webhook_tag_id'] == $filter_tag_id;
-    });
-}
-
-// Calculate health score for each webhook
-foreach ($webhooks as &$webhook) {
-    $webhook_id = $webhook['webhook_id'];
-    $stats = getWebhookStats($webhook_id);
-    $total = $stats['total'];
-    $success = $stats['success'];
-    
-    if ($total > 0) {
-        $webhook['health_score'] = ($success / $total) * 100;
-    } else {
-        $webhook['health_score'] = 100; // Default to 100% if no logs
-    }
-}
-
-// Get webhook event types for display
-$event_types = getWebhookEventTypes();
 ?>
 
-<!DOCTYPE html>
-<html lang="en">
-
-<head>
-    <?php
-    $page_title = "Webhooks";
-    require_once "../includes/modal_header.php";
-    ?>
-    <style>
-        .health-indicator {
-            height: 20px;
-            width: 20px;
-            border-radius: 50%;
-            display: inline-block;
-            margin-right: 5px;
-        }
-        .health-green { background-color: #28a745; }
-        .health-yellow { background-color: #ffc107; }
-        .health-red { background-color: #dc3545; }
-    </style>
-</head>
-
-<body class="hold-transition sidebar-mini layout-fixed">
-    <div class="wrapper">
-        <?php require_once "includes/side_nav.php"; ?>
-        <?php require_once "includes/top_nav.php"; ?>
-
-        <!-- Content Wrapper. Contains page content -->
-        <div class="content-wrapper">
-            <!-- Content Header (Page header) -->
-            <div class="content-header">
-                <div class="container-fluid">
-                    <div class="row mb-2">
-                        <div class="col-sm-6">
-                            <h1 class="m-0">Webhooks</h1>
-                        </div>
-                        <div class="col-sm-6">
-                            <ol class="breadcrumb float-sm-right">
-                                <li class="breadcrumb-item"><a href="/admin/">Admin</a></li>
-                                <li class="breadcrumb-item active">Webhooks</li>
-                            </ol>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Main content -->
-            <section class="content">
-                <div class="container-fluid">
-                    <div class="row">
-                        <div class="col-12">
-                            <div class="card">
-                                <div class="card-header">
-                                    <h3 class="card-title">Manage Webhooks</h3>
-                                    <div class="card-tools">
-                                        <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#addWebhookModal">
-                                            <i class="fas fa-plus"></i> Add Webhook
-                                        </button>
-                                    </div>
-                                </div>
-                                <div class="card-body">
-                                    <!-- Filtering Options -->
-                                    <div class="row mb-3">
-                                        <div class="col-md-3">
-                                            <form method="get" action="webhooks.php">
-                                                <div class="input-group">
-                                                    <select name="client_id" class="form-control">
-                                                        <option value="0">Filter by Client</option>
-                                                        <?php foreach ($clients as $client) { ?>
-                                                            <option value="<?php echo $client['client_id']; ?>" <?php echo $filter_client_id == $client['client_id'] ? 'selected' : ''; ?>>
-                                                                <?php echo nullable_htmlentities($client['client_name']); ?>
-                                                            </option>
-                                                        <?php } ?>
-                                                    </select>
-                                                    <div class="input-group-append">
-                                                        <button type="submit" class="btn btn-primary">Apply</button>
-                                                    </div>
-                                                </div>
-                                            </form>
-                                        </div>
-                                        <div class="col-md-3">
-                                            <form method="get" action="webhooks.php">
-                                                <div class="input-group">
-                                                    <select name="tag_id" class="form-control">
-                                                        <option value="0">Filter by Tag</option>
-                                                        <?php foreach ($client_tags as $tag) { ?>
-                                                            <option value="<?php echo $tag['tag_id']; ?>" <?php echo $filter_tag_id == $tag['tag_id'] ? 'selected' : ''; ?>>
-                                                                <?php echo nullable_htmlentities($tag['tag_name']); ?>
-                                                            </option>
-                                                        <?php } ?>
-                                                    </select>
-                                                    <div class="input-group-append">
-                                                        <button type="submit" class="btn btn-primary">Apply</button>
-                                                    </div>
-                                                </div>
-                                            </form>
-                                        </div>
-                                    </div>
-
-                                    <!-- Webhooks Table -->
-                                    <div class="table-responsive">
-                                        <table class="table table-bordered table-hover">
-                                            <thead>
-                                                <tr>
-                                                    <th>Name</th>
-                                                    <th>URL</th>
-                                                    <th>Status</th>
-                                                    <th>Health</th>
-                                                    <th>Events</th>
-                                                    <th>Actions</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                <?php if (empty($webhooks)) { ?>
-                                                    <tr>
-                                                        <td colspan="6" class="text-center">No webhooks found.</td>
-                                                    </tr>
-                                                <?php } else { ?>
-                                                    <?php foreach ($webhooks as $webhook) { ?>
-                                                        <tr>
-                                                            <td><?php echo nullable_htmlentities($webhook['webhook_name']); ?></td>
-                                                            <td><?php echo nullable_htmlentities($webhook['webhook_url']); ?></td>
-                                                            <td>
-                                                                <?php if ($webhook['webhook_enabled']) { ?>
-                                                                    <span class="badge badge-success">Enabled</span>
-                                                                <?php } else { ?>
-                                                                    <span class="badge badge-secondary">Disabled</span>
-                                                                <?php } ?>
-                                                            </td>
-                                                            <td>
-                                                                <?php
-                                                                $health_score = $webhook['health_score'];
-                                                                $health_class = 'health-green';
-                                                                if ($health_score < 70) {
-                                                                    $health_class = 'health-red';
-                                                                } elseif ($health_score < 90) {
-                                                                    $health_class = 'health-yellow';
-                                                                }
-                                                                ?>
-                                                                <span class="health-indicator <?php echo $health_class; ?>"></span>
-                                                                <?php echo round($health_score, 1); ?>%
-                                                            </td>
-                                                            <td>
-                                                                <?php
-                                                                $event_types_json = json_decode($webhook['webhook_event_types'], true);
-                                                                if (is_array($event_types_json)) {
-                                                                    echo count($event_types_json) . ' events';
-                                                                } else {
-                                                                    echo '0 events';
-                                                                }
-                                                                ?>
-                                                            </td>
-                                                            <td>
-                                                                <div class="btn-group">
-                                                                    <button type="button" class="btn btn-sm btn-info" data-toggle="modal" data-target="#editWebhookModal" data-webhook-id="<?php echo $webhook['webhook_id']; ?>">
-                                                                        <i class="fas fa-edit"></i>
-                                                                    </button>
-                                                                    <button type="button" class="btn btn-sm btn-success" data-toggle="modal" data-target="#logsModal" data-webhook-id="<?php echo $webhook['webhook_id']; ?>">
-                                                                        <i class="fas fa-history"></i>
-                                                                    </button>
-                                                                    <?php if ($webhook['webhook_enabled']) { ?>
-                                                                        <form method="post" action="webhooks.php" style="display:inline;">
-                                                                            <input type="hidden" name="action" value="disable">
-                                                                            <input type="hidden" name="webhook_id" value="<?php echo $webhook['webhook_id']; ?>">
-                                                                            <button type="submit" class="btn btn-sm btn-warning" onclick="return confirm('Disable this webhook?');">
-                                                                                <i class="fas fa-pause"></i>
-                                                                            </button>
-                                                                        </form>
-                                                                    <?php } else { ?>
-                                                                        <form method="post" action="webhooks.php" style="display:inline;">
-                                                                            <input type="hidden" name="action" value="enable">
-                                                                            <input type="hidden" name="webhook_id" value="<?php echo $webhook['webhook_id']; ?>">
-                                                                            <button type="submit" class="btn btn-sm btn-success" onclick="return confirm('Enable this webhook?');">
-                                                                                <i class="fas fa-play"></i>
-                                                                            </button>
-                                                                        </form>
-                                                                    <?php } ?>
-                                                                    <form method="post" action="webhooks.php" style="display:inline;">
-                                                                        <input type="hidden" name="action" value="delete">
-                                                                        <input type="hidden" name="webhook_id" value="<?php echo $webhook['webhook_id']; ?>">
-                                                                        <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Delete this webhook?');">
-                                                                            <i class="fas fa-trash"></i>
-                                                                        </button>
-                                                                    </form>
-                                                                </div>
-                                                            </td>
-                                                        </tr>
-                                                    <?php } ?>
-                                                <?php } ?>
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </section>
+<div class="card card-dark">
+    <div class="card-header py-2">
+        <h3 class="card-title mt-2"><i class="fas fa-fw fa-plug mr-2"></i>Webhooks</h3>
+        <div class="card-tools">
+            <button type="button" class="btn btn-primary ajax-modal"
+                data-modal-url="modals/webhook/webhook_add_modal.php"><i class="fas fa-plus mr-2"></i>New
+                Webhook</button>
         </div>
-
-        <?php require_once "includes/footer.php"; ?>
-
-        <!-- Add Webhook Modal -->
-        <div class="modal fade" id="addWebhookModal" tabindex="-1" role="dialog" aria-labelledby="addWebhookModalLabel" aria-hidden="true">
-            <div class="modal-dialog modal-lg" role="document">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="addWebhookModalLabel">Add Webhook</h5>
-                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                            <span aria-hidden="true">&times;</span>
-                        </button>
-                    </div>
-                    <form method="post" action="post/webhook.php">
-                        <div class="modal-body">
-                            <div class="form-group">
-                                <label for="webhook_name">Name</label>
-                                <input type="text" class="form-control" id="webhook_name" name="webhook_name" required>
-                            </div>
-                            <div class="form-group">
-                                <label for="webhook_description">Description</label>
-                                <textarea class="form-control" id="webhook_description" name="webhook_description" rows="3"></textarea>
-                            </div>
-                            <div class="form-group">
-                                <label for="webhook_url">URL</label>
-                                <input type="url" class="form-control" id="webhook_url" name="webhook_url" required>
-                            </div>
-                            <div class="form-group">
-                                <label for="webhook_secret">Secret</label>
-                                <div class="input-group">
-                                    <input type="text" class="form-control" id="webhook_secret" name="webhook_secret" required>
-                                    <div class="input-group-append">
-                                        <button type="button" class="btn btn-secondary" id="generateSecret">Generate</button>
-                                        <button type="button" class="btn btn-secondary" id="copySecret">Copy</button>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="form-group">
-                                <label for="webhook_client_id">Client</label>
-                                <select class="form-control" id="webhook_client_id" name="webhook_client_id">
-                                    <option value="0">All Clients</option>
-                                    <?php foreach ($clients as $client) { ?>
-                                        <option value="<?php echo $client['client_id']; ?>">
-                                            <?php echo nullable_htmlentities($client['client_name']); ?>
-                                        </option>
-                                    <?php } ?>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label for="webhook_tag_id">Client Tag</label>
-                                <select class="form-control" id="webhook_tag_id" name="webhook_tag_id">
-                                    <option value="0">No Tag</option>
-                                    <?php foreach ($client_tags as $tag) { ?>
-                                        <option value="<?php echo $tag['tag_id']; ?>">
-                                            <?php echo nullable_htmlentities($tag['tag_name']); ?>
-                                        </option>
-                                    <?php } ?>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label for="webhook_rate_limit">Rate Limit (per hour, 0 for unlimited)</label>
-                                <input type="number" class="form-control" id="webhook_rate_limit" name="webhook_rate_limit" value="100">
-                            </div>
-                            <div class="form-group">
-                                <label for="webhook_max_retries">Max Retries</label>
-                                <input type="number" class="form-control" id="webhook_max_retries" name="webhook_max_retries" value="5">
-                            </div>
-                            <div class="form-group">
-                                <label>Event Types</label>
-                                <div class="card">
-                                    <div class="card-body">
-                                        <?php foreach ($event_types as $category => $events) { ?>
-                                            <div class="mb-3">
-                                                <h6><?php echo $category; ?></h6>
-                                                <button type="button" class="btn btn-sm btn-info select-all" data-category="<?php echo md5($category); ?>">Select All</button>
-                                                <div class="mt-2">
-                                                    <?php foreach ($events as $event_key => $event_name) { ?>
-                                                        <div class="form-check">
-                                                            <input class="form-check-input event-checkbox" type="checkbox" name="webhook_event_types[]" value="<?php echo $event_key; ?>" id="event_<?php echo md5($event_key); ?>" data-category="<?php echo md5($category); ?>">
-                                                            <label class="form-check-label" for="event_<?php echo md5($event_key); ?>">
-                                                                <?php echo $event_name; ?>
-                                                            </label>
-                                                        </div>
-                                                    <?php } ?>
-                                                </div>
-                                            </div>
-                                        <?php } ?>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
-                            <button type="submit" class="btn btn-primary">Save Webhook</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
-
-        <!-- Edit Webhook Modal -->
-        <div class="modal fade" id="editWebhookModal" tabindex="-1" role="dialog" aria-labelledby="editWebhookModalLabel" aria-hidden="true">
-            <div class="modal-dialog modal-lg" role="document">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="editWebhookModalLabel">Edit Webhook</h5>
-                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                            <span aria-hidden="true">&times;</span>
-                        </button>
-                    </div>
-                    <form method="post" action="post/webhook.php">
-                        <input type="hidden" name="webhook_id" id="edit_webhook_id">
-                        <div class="modal-body" id="editWebhookBody">
-                            <!-- Content will be loaded via AJAX -->
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
-                            <button type="submit" class="btn btn-primary">Save Changes</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
-
-        <!-- Logs Modal -->
-        <div class="modal fade" id="logsModal" tabindex="-1" role="dialog" aria-labelledby="logsModalLabel" aria-hidden="true">
-            <div class="modal-dialog modal-xl" role="document">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="logsModalLabel">Webhook Logs</h5>
-                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                            <span aria-hidden="true">&times;</span>
-                        </button>
-                    </div>
-                    <div class="modal-body" id="logsModalBody">
-                        <!-- Content will be loaded via AJAX -->
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <script>
-            // Generate a random secret
-            document.getElementById('generateSecret').addEventListener('click', function() {
-                fetch('/admin/post/webhook.php?action=generate_secret')
-                    .then(response => response.text())
-                    .then(secret => {
-                        document.getElementById('webhook_secret').value = secret;
-                    });
-            });
-
-            // Copy secret to clipboard
-            document.getElementById('copySecret').addEventListener('click', function() {
-                var secretInput = document.getElementById('webhook_secret');
-                secretInput.select();
-                document.execCommand('copy');
-                alert('Secret copied to clipboard!');
-            });
-
-            // Select all events in a category
-            document.querySelectorAll('.select-all').forEach(button => {
-                button.addEventListener('click', function() {
-                    var category = this.getAttribute('data-category');
-                    var checkboxes = document.querySelectorAll('.event-checkbox[data-category="' + category + '"]');
-                    checkboxes.forEach(checkbox => {
-                        checkbox.checked = true;
-                    });
-                });
-            });
-
-            // Load edit webhook form
-            $('#editWebhookModal').on('show.bs.modal', function (event) {
-                var button = $(event.relatedTarget);
-                var webhook_id = button.data('webhook-id');
-                var modal = $(this);
-                modal.find('.modal-body').html('<p>Loading...</p>');
-                
-                fetch('/admin/post/webhook.php?action=get_webhook&webhook_id=' + webhook_id)
-                    .then(response => response.text())
-                    .then(html => {
-                        modal.find('.modal-body').html(html);
-                    });
-            });
-
-            // Load logs
-            $('#logsModal').on('show.bs.modal', function (event) {
-                var button = $(event.relatedTarget);
-                var webhook_id = button.data('webhook-id');
-                var modal = $(this);
-                modal.find('.modal-body').html('<p>Loading...</p>');
-                
-                fetch('/admin/post/webhook.php?action=get_logs&webhook_id=' + webhook_id)
-                    .then(response => response.text())
-                    .then(html => {
-                        modal.find('.modal-body').html(html);
-                    });
-            });
-        </script>
     </div>
-</body>
 
-</html>
+    <div class="card-body">
+
+        <form autocomplete="off">
+            <div class="row">
+
+                <div class="col-md-4">
+                    <div class="input-group mb-3 mb-md-0">
+                        <input type="search" class="form-control" name="q" value="<?php if (isset($q)) {
+                            echo stripslashes(nullable_htmlentities($q));
+                        } ?>" placeholder="Search webhooks">
+                        <div class="input-group-append">
+                            <button class="btn btn-primary"><i class="fa fa-search"></i></button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-8">
+                    <div class="btn-group float-right">
+                        <div class="dropdown ml-2" id="bulkActionButton" hidden>
+                            <button class="btn btn-secondary dropdown-toggle" type="button" data-toggle="dropdown">
+                                <i class="fas fa-fw fa-layer-group mr-2"></i>Bulk Action (<span
+                                    id="selectedCount">0</span>)
+                            </button>
+                            <div class="dropdown-menu">
+                                <button class="dropdown-item text-success" type="submit" form="bulkActions"
+                                    name="bulk_enable_webhooks">
+                                    <i class="fas fa-fw fa-check mr-2"></i>Enable
+                                </button>
+                                <button class="dropdown-item text-warning" type="submit" form="bulkActions"
+                                    name="bulk_disable_webhooks">
+                                    <i class="fas fa-fw fa-ban mr-2"></i>Disable
+                                </button>
+                                <div class="dropdown-divider"></div>
+                                <button class="dropdown-item text-danger text-bold" type="submit" form="bulkActions"
+                                    name="bulk_delete_webhooks">
+                                    <i class="fas fa-fw fa-trash mr-2"></i>Delete
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+        </form>
+        <hr>
+
+        <div class="table-responsive-sm">
+
+            <form id="bulkActions" action="post.php" method="post">
+                <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token'] ?>">
+
+                <table class="table table-striped table-borderless table-hover">
+                    <thead class="text-dark <?php if ($num_rows[0] == 0) {
+                        echo "d-none";
+                    } ?>">
+                        <tr>
+                            <td class="pr-0">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" onclick="checkAll(this)">
+                                </div>
+                            </td>
+                            <th>
+                                <a class="text-dark"
+                                    href="?<?php echo $url_query_strings_sort; ?>&sort=webhook_name&order=<?php echo $disp; ?>">
+                                    Name <?php if ($sort == 'webhook_name') {
+                                        echo $order_icon;
+                                    } ?>
+                                </a>
+                            </th>
+                            <th>URL</th>
+                            <th>
+                                <a class="text-dark"
+                                    href="?<?php echo $url_query_strings_sort; ?>&sort=webhook_client_id&order=<?php echo $disp; ?>">
+                                    Client <?php if ($sort == 'webhook_client_id') {
+                                        echo $order_icon;
+                                    } ?>
+                                </a>
+                            </th>
+                            <th class="text-center">Status</th>
+                            <th class="text-center">Deliveries</th>
+                            <th>
+                                <a class="text-dark"
+                                    href="?<?php echo $url_query_strings_sort; ?>&sort=webhook_created_at&order=<?php echo $disp; ?>">
+                                    Created <?php if ($sort == 'webhook_created_at') {
+                                        echo $order_icon;
+                                    } ?>
+                                </a>
+                            </th>
+                            <th class="text-center">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php
+
+                        while ($row = mysqli_fetch_array($sql)) {
+                            $webhook_id = intval($row['webhook_id']);
+                            $webhook_name = nullable_htmlentities($row['webhook_name']);
+                            $webhook_url = nullable_htmlentities($row['webhook_url']);
+                            $webhook_url_display = strlen($webhook_url) > 50 ? substr($webhook_url, 0, 50) . '...' : $webhook_url;
+                            $webhook_secret = nullable_htmlentities($row['webhook_secret']);
+                            $webhook_secret_masked = "************" . substr($webhook_secret, -4);
+                            $webhook_enabled = intval($row['webhook_enabled']);
+                            $webhook_client_id = intval($row['webhook_client_id']);
+                            $webhook_rate_limit = intval($row['webhook_rate_limit']);
+                            $webhook_description = nullable_htmlentities($row['webhook_description']);
+                            $webhook_created_at = nullable_htmlentities($row['webhook_created_at']);
+                            $webhook_event_types = $row['webhook_event_types'];
+
+                            $success_count = intval($row['success_count']);
+                            $failed_count = intval($row['failed_count']);
+
+                            if ($webhook_client_id == 0) {
+                                $webhook_client = "<i>All Clients</i>";
+                            } else {
+                                $webhook_client = nullable_htmlentities($row['client_name']);
+                            }
+
+                            ?>
+                            <tr>
+                                <td class="pr-0">
+                                    <div class="form-check">
+                                        <input class="form-check-input bulk-select" type="checkbox" name="webhook_ids[]"
+                                            value="<?php echo $webhook_id ?>">
+                                    </div>
+                                </td>
+                                <td>
+                                    <a href="#" class="ajax-modal"
+                                        data-modal-url="modals/webhook/webhook_edit_modal.php?webhook_id=<?php echo $webhook_id; ?>">
+                                        <span class="text-bold"><?php echo $webhook_name; ?></span>
+                                    </a>
+                                    <?php if ($webhook_description) { ?>
+                                        <br><small class="text-muted"><?php echo $webhook_description; ?></small>
+                                    <?php } ?>
+                                </td>
+                                <td>
+                                    <span title="<?php echo $webhook_url; ?>"><?php echo $webhook_url_display; ?></span>
+                                </td>
+                                <td><?php echo $webhook_client; ?></td>
+                                <td class="text-center">
+                                    <?php if ($webhook_enabled) { ?>
+                                        <span class="badge badge-success p-2"><i class="fas fa-check mr-1"></i>Enabled</span>
+                                    <?php } else { ?>
+                                        <span class="badge badge-secondary p-2"><i class="fas fa-ban mr-1"></i>Disabled</span>
+                                    <?php } ?>
+                                </td>
+                                <td class="text-center">
+                                    <a href="#" class="ajax-modal"
+                                        data-modal-url="modals/webhook/webhook_logs_modal.php?webhook_id=<?php echo $webhook_id; ?>">
+                                        <span class="badge badge-success p-2"><?php echo $success_count; ?></span>
+                                        <?php if ($failed_count > 0) { ?>
+                                            <span class="badge badge-danger p-2"><?php echo $failed_count; ?></span>
+                                        <?php } ?>
+                                    </a>
+                                </td>
+                                <td><?php echo $webhook_created_at; ?></td>
+                                <td>
+                                    <div class="dropdown dropleft text-center">
+                                        <button class="btn btn-secondary btn-sm" type="button" data-toggle="dropdown">
+                                            <i class="fas fa-ellipsis-h"></i>
+                                        </button>
+                                        <div class="dropdown-menu">
+                                            <a class="dropdown-item ajax-modal" href="#"
+                                                data-modal-url="modals/webhook/webhook_edit_modal.php?webhook_id=<?php echo $webhook_id; ?>">
+                                                <i class="fas fa-fw fa-edit mr-2"></i>Edit
+                                            </a>
+                                            <a class="dropdown-item ajax-modal" href="#"
+                                                data-modal-url="modals/webhook/webhook_logs_modal.php?webhook_id=<?php echo $webhook_id; ?>">
+                                                <i class="fas fa-fw fa-list mr-2"></i>View Logs
+                                            </a>
+                                            <a class="dropdown-item confirm-link"
+                                                href="post.php?test_webhook=<?php echo $webhook_id; ?>&csrf_token=<?php echo $_SESSION['csrf_token'] ?>">
+                                                <i class="fas fa-fw fa-paper-plane mr-2"></i>Send Test
+                                            </a>
+                                            <div class="dropdown-divider"></div>
+                                            <?php if ($webhook_enabled) { ?>
+                                                <a class="dropdown-item text-warning"
+                                                    href="post.php?toggle_webhook=<?php echo $webhook_id; ?>&status=0&csrf_token=<?php echo $_SESSION['csrf_token'] ?>">
+                                                    <i class="fas fa-fw fa-ban mr-2"></i>Disable
+                                                </a>
+                                            <?php } else { ?>
+                                                <a class="dropdown-item text-success"
+                                                    href="post.php?toggle_webhook=<?php echo $webhook_id; ?>&status=1&csrf_token=<?php echo $_SESSION['csrf_token'] ?>">
+                                                    <i class="fas fa-fw fa-check mr-2"></i>Enable
+                                                </a>
+                                            <?php } ?>
+                                            <div class="dropdown-divider"></div>
+                                            <a class="dropdown-item text-danger text-bold confirm-link"
+                                                href="post.php?delete_webhook=<?php echo $webhook_id; ?>&csrf_token=<?php echo $_SESSION['csrf_token'] ?>">
+                                                <i class="fas fa-fw fa-trash mr-2"></i>Delete
+                                            </a>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+
+                        <?php } ?>
+
+
+                    </tbody>
+                </table>
+
+            </form>
+
+        </div>
+        <?php require_once "../includes/filter_footer.php"; ?>
+    </div>
+</div>
+
+<script src="../js/bulk_actions.js"></script>
+
+<?php
+require_once "../includes/footer.php";

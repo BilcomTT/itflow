@@ -2,6 +2,9 @@
 
 defined('FROM_POST_HANDLER') || die("Direct file access is not allowed");
 
+// Webhook functions
+require_once dirname(__FILE__) . "/../../includes/webhook_functions.php";
+
 if (isset($_POST['edit_company'])) {
 
     validateCSRFToken($_POST['csrf_token']);
@@ -12,13 +15,13 @@ if (isset($_POST['edit_company'])) {
     $state = sanitizeInput($_POST['state']);
     $zip = sanitizeInput($_POST['zip']);
     $country = sanitizeInput($_POST['country']);
-    $phone_country_code = preg_replace("/[^0-9]/", '',$_POST['phone_country_code']);
-    $phone = preg_replace("/[^0-9]/", '',$_POST['phone']);
+    $phone_country_code = preg_replace("/[^0-9]/", '', $_POST['phone_country_code']);
+    $phone = preg_replace("/[^0-9]/", '', $_POST['phone']);
     $email = sanitizeInput($_POST['email']);
     $website = sanitizeInput($_POST['website']);
     $tax_id = sanitizeInput($_POST['tax_id']);
 
-    $sql = mysqli_query($mysqli,"SELECT company_logo FROM companies WHERE company_id = 1");
+    $sql = mysqli_query($mysqli, "SELECT company_logo FROM companies WHERE company_id = 1");
     $row = mysqli_fetch_array($sql);
     $existing_file_name = sanitizeInput($row['company_logo']);
 
@@ -37,14 +40,20 @@ if (isset($_POST['edit_company'])) {
             unlink("../uploads/settings/$existing_file_name");
 
             // Set Logo
-            mysqli_query($mysqli,"UPDATE companies SET company_logo = '$new_file_name' WHERE company_id = 1");
+            mysqli_query($mysqli, "UPDATE companies SET company_logo = '$new_file_name' WHERE company_id = 1");
 
         }
     }
 
-    mysqli_query($mysqli,"UPDATE companies SET company_name = '$name', company_address = '$address', company_city = '$city', company_state = '$state', company_zip = '$zip', company_country = '$country', company_phone_country_code = '$phone_country_code', company_phone = '$phone', company_email = '$email', company_website = '$website', company_tax_id = '$tax_id' WHERE company_id = 1");
+    mysqli_query($mysqli, "UPDATE companies SET company_name = '$name', company_address = '$address', company_city = '$city', company_state = '$state', company_zip = '$zip', company_country = '$country', company_phone_country_code = '$phone_country_code', company_phone = '$phone', company_email = '$email', company_website = '$website', company_tax_id = '$tax_id' WHERE company_id = 1");
 
     logAction("Settings", "Edit", "$session_name edited company details");
+
+    triggerWebhook('system.settings_updated', [
+        'settings_type' => 'Company',
+        'company_name' => $name,
+        'updated_by' => $session_name
+    ]);
 
     flash_alert("Company <strong>$name</strong> edited");
 
@@ -54,15 +63,20 @@ if (isset($_POST['edit_company'])) {
 
 if (isset($_GET['remove_company_logo'])) {
 
-    $sql = mysqli_query($mysqli,"SELECT company_logo FROM companies");
+    $sql = mysqli_query($mysqli, "SELECT company_logo FROM companies");
     $row = mysqli_fetch_array($sql);
     $company_logo = $row['company_logo']; // FileSystem Operation Logo is already sanitized
 
     unlink("../uploads/settings/$company_logo");
 
-    mysqli_query($mysqli,"UPDATE companies SET company_logo = NULL WHERE company_id = 1");
+    mysqli_query($mysqli, "UPDATE companies SET company_logo = NULL WHERE company_id = 1");
 
     logAction("Settings", "Edit", "$session_name deleted company logo");
+
+    triggerWebhook('system.settings_updated', [
+        'settings_type' => 'Company Logo Deleted',
+        'updated_by' => $session_name
+    ]);
 
     flash_alert("Removed company logo", 'error');
 

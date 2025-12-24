@@ -26,6 +26,17 @@ if (isset($_GET['accept_quote'], $_GET['url_key'])) {
         mysqli_query($mysqli, "UPDATE quotes SET quote_status = 'Accepted' WHERE quote_id = $quote_id");
         mysqli_query($mysqli, "INSERT INTO history SET history_status = 'Accepted', history_description = 'Client accepted Quote!', history_quote_id = $quote_id");
 
+        // Trigger webhook for quote accepted
+        if (file_exists("../includes/webhook_functions.php")) {
+            require_once "../includes/webhook_functions.php";
+            triggerWebhook('quote.accepted', [
+                'quote_id' => $quote_id,
+                'quote_number' => $quote_prefix . $quote_number,
+                'client_id' => $client_id,
+                'accepted_by' => 'Guest'
+            ], $client_id);
+        }
+
         // Notification
         appNotify("Quote Accepted", "Quote $quote_prefix$quote_number has been accepted by $client_name", "/agent/quote.php?quote_id=$quote_id", $client_id);
         customAction('quote_accept', $quote_id);
@@ -90,6 +101,17 @@ if (isset($_GET['decline_quote'], $_GET['url_key'])) {
 
         mysqli_query($mysqli, "UPDATE quotes SET quote_status = 'Declined' WHERE quote_id = $quote_id");
         mysqli_query($mysqli, "INSERT INTO history SET history_status = 'Declined', history_description = 'Client declined Quote!', history_quote_id = $quote_id");
+
+        // Trigger webhook for quote declined
+        if (file_exists("../includes/webhook_functions.php")) {
+            require_once "../includes/webhook_functions.php";
+            triggerWebhook('quote.declined', [
+                'quote_id' => $quote_id,
+                'quote_number' => $quote_prefix . $quote_number,
+                'client_id' => $client_id,
+                'declined_by' => 'Guest'
+            ], $client_id);
+        }
 
         // Notification
         appNotify("Quote Declined", "Quote $quote_prefix$quote_number has been declined by $client_name", "/agent/quote.php?quote_id=$quote_id", $client_id);

@@ -2,6 +2,9 @@
 
 defined('FROM_POST_HANDLER') || die("Direct file access is not allowed");
 
+// Webhook functions
+require_once dirname(__FILE__) . "/../../includes/webhook_functions.php";
+
 if (isset($_POST['edit_default_settings'])) {
 
     validateCSRFToken($_POST['csrf_token']);
@@ -17,9 +20,14 @@ if (isset($_POST['edit_default_settings'])) {
     $net_terms = intval($_POST['net_terms']);
     $hourly_rate = floatval($_POST['hourly_rate']);
 
-    mysqli_query($mysqli,"UPDATE settings SET config_start_page = '$start_page', config_default_expense_account = $expense_account, config_default_payment_account = $payment_account, config_default_payment_method = '$payment_method', config_default_expense_payment_method = '$expense_payment_method', config_default_transfer_from_account = $transfer_from_account, config_default_transfer_to_account = $transfer_to_account, config_default_calendar = $calendar, config_default_net_terms = $net_terms, config_default_hourly_rate = $hourly_rate WHERE company_id = 1");
+    mysqli_query($mysqli, "UPDATE settings SET config_start_page = '$start_page', config_default_expense_account = $expense_account, config_default_payment_account = $payment_account, config_default_payment_method = '$payment_method', config_default_expense_payment_method = '$expense_payment_method', config_default_transfer_from_account = $transfer_from_account, config_default_transfer_to_account = $transfer_to_account, config_default_calendar = $calendar, config_default_net_terms = $net_terms, config_default_hourly_rate = $hourly_rate WHERE company_id = 1");
 
     logAction("Settings", "Edit", "$session_name edited default settings");
+
+    triggerWebhook('system.settings_updated', [
+        'settings_type' => 'Default',
+        'updated_by' => $session_name
+    ]);
 
     flash_alert("Default settings edited");
 

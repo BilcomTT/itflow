@@ -5,7 +5,13 @@ require_once "../../includes/inc_all_admin.php";
 if (isset($_GET['action'])) {
     $action = sanitizeInput($_GET['action']);
 
-    if ($action == 'generate_secret') {
+    if ($action == 'test_webhook') {
+        $webhook_id = intval($_GET['webhook_id']);
+        $result = sendTestWebhook($webhook_id);
+        header('Content-Type: application/json');
+        echo json_encode($result);
+        exit();
+    } elseif ($action == 'generate_secret') {
         echo generateWebhookSecret();
         exit();
     } elseif ($action == 'get_webhook') {
@@ -57,6 +63,21 @@ if (isset($_GET['action'])) {
                         <button type="button" class="btn btn-secondary" id="edit_copySecret">Copy</button>
                     </div>
                 </div>
+            </div>
+            <div class="form-group">
+                <label for="edit_webhook_enabled">Status</label>
+                <select class="form-control" id="edit_webhook_enabled" name="webhook_enabled">
+                    <option value="1" <?php echo $webhook['webhook_enabled'] ? 'selected' : ''; ?>>Enabled</option>
+                    <option value="0" <?php echo !$webhook['webhook_enabled'] ? 'selected' : ''; ?>>Disabled</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="edit_webhook_queuing_enabled">Enable Queuing</label>
+                <select class="form-control" id="edit_webhook_queuing_enabled" name="webhook_queuing_enabled">
+                    <option value="1" <?php echo $webhook['webhook_queuing_enabled'] ? 'selected' : ''; ?>>Yes</option>
+                    <option value="0" <?php echo !$webhook['webhook_queuing_enabled'] ? 'selected' : ''; ?>>No</option>
+                </select>
+                <small class="form-text text-muted">Enable retry queuing with exponential backoff for failed webhooks</small>
             </div>
             <div class="form-group">
                 <label for="edit_webhook_client_id">Client</label>
@@ -204,7 +225,26 @@ if (isset($_GET['action'])) {
 
 // Handle form submissions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (isset($_POST['webhook_id'])) {
+    // Validate CSRF token
+    validateCSRFToken($_POST['csrf_token']);
+
+    if (isset($_POST['webhook_id']) && isset($_POST['action']) && ($_POST['action'] == 'disable' || $_POST['action'] == 'enable' || $_POST['action'] == 'delete')) {
+        $webhook_id = intval($_POST['webhook_id']);
+        $action = sanitizeInput($_POST['action']);
+        
+        if ($action == 'disable') {
+            mysqli_query($mysqli, "UPDATE webhooks SET webhook_enabled = 0 WHERE webhook_id = $webhook_id");
+            logAction("Webhook", "Disabled", "Webhook $webhook_id disabled");
+        } elseif ($action == 'enable') {
+            mysqli_query($mysqli, "UPDATE webhooks SET webhook_enabled = 1 WHERE webhook_id = $webhook_id");
+            logAction("Webhook", "Enabled", "Webhook $webhook_id enabled");
+        } elseif ($action == 'delete') {
+            mysqli_query($mysqli, "DELETE FROM webhooks WHERE webhook_id = $webhook_id");
+            mysqli_query($mysqli, "DELETE FROM webhook_logs WHERE webhook_log_webhook_id = $webhook_id");
+            logAction("Webhook", "Deleted", "Webhook $webhook_id deleted");
+        }
+        
+    } elseif (isset($_POST['webhook_id'])) {
         // Edit webhook
         $webhook_id = intval($_POST['webhook_id']);
         $webhook_name = sanitizeInput($_POST['webhook_name']);
@@ -217,16 +257,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $webhook_max_retries = intval($_POST['webhook_max_retries']);
         $webhook_event_types = isset($_POST['webhook_event_types']) ? $_POST['webhook_event_types'] : [];
         
+        // Validation
+        if (empty($webhook_name) || empty($webhook_url) || empty($webhook_secret)) {
+             $_SESSION['alert_message'] = "Name, URL, and Secret are required";
+             $_SESSION['alert_type'] = "error";
+             header("Location: /admin/webhooks.php");
+             exit();
+        }
+        
+        if (!filter_var($webhook_url, FILTER_VALIDATE_URL)) {
+             $_SESSION['alert_message'] = "Invalid URL format";
+             $_SESSION['alert_type'] = "error";
+             header("Location: /admin/webhooks.php");
+             exit();
+        }
+
+        if (isValidWebhookUrl($webhook_url) === false) {
+             $_SESSION['alert_message'] = "Invalid or restricted URL (SSRF protection)";
+             $_SESSION['alert_type'] = "error";
+             header("Location: /admin/webhooks.php");
+             exit();
+        }
+        
+        $webhook_enabled = isset($_POST['webhook_enabled']) ? intval($_POST['webhook_enabled']) : 0;
+        $webhook_queuing_enabled = isset($_POST['webhook_queuing_enabled']) ? intval($_POST['webhook_queuing_enabled']) : 0;
+        
         mysqli_query($mysqli, "UPDATE webhooks SET
             webhook_name = '$webhook_name',
             webhook_description = '$webhook_description',
             webhook_url = '$webhook_url',
             webhook_secret = '$webhook_secret',
+            webhook_enabled = $webhook_enabled,
             webhook_client_id = $webhook_client_id,
             webhook_tag_id = $webhook_tag_id,
             webhook_rate_limit = $webhook_rate_limit,
             webhook_max_retries = $webhook_max_retries,
-            webhook_event_types = '" . mysqli_real_escape_string($mysqli, json_encode($webhook_event_types)) . "'
+            webhook_queuing_enabled = $webhook_queuing_enabled,
+            webhook_event_types = '" . mysqli_real_escape_string($mysqli, json_encode($webhook_event_types)) . "',
+            webhook_updated_at = NOW()
             WHERE webhook_id = $webhook_id
         ");
         
@@ -243,16 +311,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $webhook_max_retries = intval($_POST['webhook_max_retries']);
         $webhook_event_types = isset($_POST['webhook_event_types']) ? $_POST['webhook_event_types'] : [];
         
+        // Validation
+        if (empty($webhook_name) || empty($webhook_url) || empty($webhook_secret)) {
+             $_SESSION['alert_message'] = "Name, URL, and Secret are required";
+             $_SESSION['alert_type'] = "error";
+             header("Location: /admin/webhooks.php");
+             exit();
+        }
+        
+        if (!filter_var($webhook_url, FILTER_VALIDATE_URL)) {
+             $_SESSION['alert_message'] = "Invalid URL format";
+             $_SESSION['alert_type'] = "error";
+             header("Location: /admin/webhooks.php");
+             exit();
+        }
+
+        if (isValidWebhookUrl($webhook_url) === false) {
+             $_SESSION['alert_message'] = "Invalid or restricted URL (SSRF protection)";
+             $_SESSION['alert_type'] = "error";
+             header("Location: /admin/webhooks.php");
+             exit();
+        }
+        
+        $webhook_enabled = isset($_POST['webhook_enabled']) ? intval($_POST['webhook_enabled']) : 0;
+        $webhook_queuing_enabled = isset($_POST['webhook_queuing_enabled']) ? intval($_POST['webhook_queuing_enabled']) : 0;
+        
         mysqli_query($mysqli, "INSERT INTO webhooks SET
             webhook_name = '$webhook_name',
             webhook_description = '$webhook_description',
             webhook_url = '$webhook_url',
             webhook_secret = '$webhook_secret',
+            webhook_enabled = $webhook_enabled,
             webhook_client_id = $webhook_client_id,
             webhook_tag_id = $webhook_tag_id,
             webhook_rate_limit = $webhook_rate_limit,
             webhook_max_retries = $webhook_max_retries,
-            webhook_event_types = '" . mysqli_real_escape_string($mysqli, json_encode($webhook_event_types)) . "'
+            webhook_queuing_enabled = $webhook_queuing_enabled,
+            webhook_event_types = '" . mysqli_real_escape_string($mysqli, json_encode($webhook_event_types)) . "',
+            webhook_created_at = NOW(),
+            webhook_updated_at = NOW()
         ");
         
         logAction("Webhook", "Created", "New webhook created: $webhook_name");

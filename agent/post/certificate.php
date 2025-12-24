@@ -6,6 +6,9 @@
 
 defined('FROM_POST_HANDLER') || die("Direct file access is not allowed");
 
+// Webhook functions
+require_once dirname(__FILE__) . "/../../includes/webhook_functions.php";
+
 if (isset($_POST['add_certificate'])) {
 
     enforceUserPermission('module_support', 2);
@@ -28,11 +31,19 @@ if (isset($_POST['add_certificate'])) {
         $expire = "'" . $expire . "'";
     }
 
-    mysqli_query($mysqli,"INSERT INTO certificates SET certificate_name = '$name', certificate_description = '$description', certificate_domain = '$domain', certificate_issued_by = '$issued_by', certificate_expire = $expire, certificate_public_key = '$public_key', certificate_notes = '$notes', certificate_domain_id = $domain_id, certificate_client_id = $client_id");
+    mysqli_query($mysqli, "INSERT INTO certificates SET certificate_name = '$name', certificate_description = '$description', certificate_domain = '$domain', certificate_issued_by = '$issued_by', certificate_expire = $expire, certificate_public_key = '$public_key', certificate_notes = '$notes', certificate_domain_id = $domain_id, certificate_client_id = $client_id");
 
     $certificate_id = mysqli_insert_id($mysqli);
 
     logAction("Certificate", "Create", "$session_name created certificate $name", $client_id, $certificate_id);
+
+    triggerWebhook('certificate.created', [
+        'certificate_id' => $certificate_id,
+        'certificate_name' => $name,
+        'certificate_domain' => $domain,
+        'client_id' => $client_id,
+        'created_by' => $session_name
+    ], $client_id);
 
     flash_alert("Certificate <strong>$name</strong> created");
 
@@ -64,7 +75,7 @@ if (isset($_POST['edit_certificate'])) {
     }
 
     // Get current certificate info
-    $original_certificate_info = mysqli_fetch_assoc(mysqli_query($mysqli,"
+    $original_certificate_info = mysqli_fetch_assoc(mysqli_query($mysqli, "
         SELECT
             certificates.*,
             domains.domain_name
@@ -74,10 +85,10 @@ if (isset($_POST['edit_certificate'])) {
     "));
 
     // Update certificate
-    mysqli_query($mysqli,"UPDATE certificates SET certificate_name = '$name', certificate_description = '$description', certificate_domain = '$domain', certificate_issued_by = '$issued_by', certificate_expire = $expire, certificate_public_key = '$public_key', certificate_notes = '$notes', certificate_domain_id = '$domain_id' WHERE certificate_id = $certificate_id");
+    mysqli_query($mysqli, "UPDATE certificates SET certificate_name = '$name', certificate_description = '$description', certificate_domain = '$domain', certificate_issued_by = '$issued_by', certificate_expire = $expire, certificate_public_key = '$public_key', certificate_notes = '$notes', certificate_domain_id = '$domain_id' WHERE certificate_id = $certificate_id");
 
     // Fetch the updated info
-    $new_certificate_info = mysqli_fetch_assoc(mysqli_query($mysqli,"
+    $new_certificate_info = mysqli_fetch_assoc(mysqli_query($mysqli, "
         SELECT
             certificates.*,
             domains.domain_name
@@ -94,11 +105,19 @@ if (isset($_POST['edit_certificate'])) {
             $column = sanitizeInput($column);
             $old_value = sanitizeInput($old_value);
             $new_value = sanitizeInput($new_value);
-            mysqli_query($mysqli,"INSERT INTO certificate_history SET certificate_history_column = '$column', certificate_history_old_value = '$old_value', certificate_history_new_value = '$new_value', certificate_history_certificate_id = $certificate_id");
+            mysqli_query($mysqli, "INSERT INTO certificate_history SET certificate_history_column = '$column', certificate_history_old_value = '$old_value', certificate_history_new_value = '$new_value', certificate_history_certificate_id = $certificate_id");
         }
     }
 
     logAction("Certificate", "Edit", "$session_name edited certificate $name", $client_id, $certificate_id);
+
+    triggerWebhook('certificate.updated', [
+        'certificate_id' => $certificate_id,
+        'certificate_name' => $name,
+        'certificate_domain' => $domain,
+        'client_id' => $client_id,
+        'updated_by' => $session_name
+    ], $client_id);
 
     flash_alert("Certificate <strong>$name</strong> updated");
 
@@ -113,14 +132,22 @@ if (isset($_GET['archive_certificate'])) {
     $certificate_id = intval($_GET['archive_certificate']);
 
     // Get Certificate Name and Client ID for logging and alert message
-    $sql = mysqli_query($mysqli,"SELECT certificate_name, certificate_client_id FROM certificates WHERE certificate_id = $certificate_id");
+    $sql = mysqli_query($mysqli, "SELECT certificate_name, certificate_client_id FROM certificates WHERE certificate_id = $certificate_id");
     $row = mysqli_fetch_array($sql);
     $certificate_name = sanitizeInput($row['certificate_name']);
     $client_id = intval($row['certificate_client_id']);
 
-    mysqli_query($mysqli,"UPDATE certificates SET certificate_archived_at = NOW() WHERE certificate_id = $certificate_id");
+    mysqli_query($mysqli, "UPDATE certificates SET certificate_archived_at = NOW() WHERE certificate_id = $certificate_id");
 
     logAction("Certificate", "Archive", "$session_name archived certificate $certificate_name", $client_id, $certificate_id);
+
+    // Trigger webhook for certificate archived
+    triggerWebhook('certificate.archived', [
+        'certificate_id' => $certificate_id,
+        'certificate_name' => $certificate_name,
+        'client_id' => $client_id,
+        'archived_by' => $session_name
+    ], $client_id);
 
     flash_alert("Certificate <strong>$certificate_name</strong> archived", 'alert');
 
@@ -135,12 +162,12 @@ if (isset($_GET['unarchive_certificate'])) {
     $certificate_id = intval($_GET['unarchive_certificate']);
 
     // Get Certificate Name and Client ID for logging and alert message
-    $sql = mysqli_query($mysqli,"SELECT certificate_name, certificate_client_id FROM certificates WHERE certificate_id = $certificate_id");
+    $sql = mysqli_query($mysqli, "SELECT certificate_name, certificate_client_id FROM certificates WHERE certificate_id = $certificate_id");
     $row = mysqli_fetch_array($sql);
     $certificate_name = sanitizeInput($row['certificate_name']);
     $client_id = intval($row['certificate_client_id']);
 
-    mysqli_query($mysqli,"UPDATE certificates SET certificate_archived_at = NULL WHERE certificate_id = $certificate_id");
+    mysqli_query($mysqli, "UPDATE certificates SET certificate_archived_at = NULL WHERE certificate_id = $certificate_id");
 
     logAction("Certificate", "Unarchive", "$session_name restored certificate $certificate_name", $client_id, $certificate_id);
 
@@ -157,14 +184,21 @@ if (isset($_GET['delete_certificate'])) {
     $certificate_id = intval($_GET['delete_certificate']);
 
     // Get Certificate Name and Client ID for logging and alert message
-    $sql = mysqli_query($mysqli,"SELECT certificate_name, certificate_client_id FROM certificates WHERE certificate_id = $certificate_id");
+    $sql = mysqli_query($mysqli, "SELECT certificate_name, certificate_client_id FROM certificates WHERE certificate_id = $certificate_id");
     $row = mysqli_fetch_array($sql);
     $certificate_name = sanitizeInput($row['certificate_name']);
     $client_id = intval($row['certificate_client_id']);
 
-    mysqli_query($mysqli,"DELETE FROM certificates WHERE certificate_id = $certificate_id");
+    mysqli_query($mysqli, "DELETE FROM certificates WHERE certificate_id = $certificate_id");
 
     logAction("Certificate", "Delete", "$session_name deleted certificate $name", $client_id);
+
+    triggerWebhook('certificate.deleted', [
+        'certificate_id' => $certificate_id,
+        'certificate_name' => $certificate_name,
+        'client_id' => $client_id,
+        'deleted_by' => $session_name
+    ], $client_id);
 
     flash_alert("Certificate <strong>$certificate_name</strong> deleted");
 
@@ -189,7 +223,7 @@ if (isset($_POST['bulk_delete_certificates'])) {
             $certificate_id = intval($certificate_id);
 
             // Get Certificate Name and Client ID for logging and alert message
-            $sql = mysqli_query($mysqli,"SELECT certificate_name, certificate_client_id FROM certificates WHERE certificate_id = $certificate_id");
+            $sql = mysqli_query($mysqli, "SELECT certificate_name, certificate_client_id FROM certificates WHERE certificate_id = $certificate_id");
             $row = mysqli_fetch_array($sql);
             $certificate_name = sanitizeInput($row['certificate_name']);
             $client_id = intval($row['certificate_client_id']);
@@ -197,6 +231,13 @@ if (isset($_POST['bulk_delete_certificates'])) {
             mysqli_query($mysqli, "DELETE FROM certificates WHERE certificate_id = $certificate_id AND certificate_client_id = $client_id");
 
             logAction("Certificate", "Delete", "$session_name deleted certificate $certificate_name", $client_id);
+
+            triggerWebhook('certificate.deleted', [
+                'certificate_id' => $certificate_id,
+                'certificate_name' => $certificate_name,
+                'client_id' => $client_id,
+                'deleted_by' => $session_name
+            ], $client_id);
 
         }
 
@@ -225,14 +266,14 @@ if (isset($_POST['export_certificates_csv'])) {
         $file_name_prepend = "$session_company_name-";
     }
 
-    $sql = mysqli_query($mysqli,"SELECT * FROM certificates WHERE certificate_archived_at IS NULL $client_query ORDER BY certificate_name ASC");
+    $sql = mysqli_query($mysqli, "SELECT * FROM certificates WHERE certificate_archived_at IS NULL $client_query ORDER BY certificate_name ASC");
 
     $num_rows = mysqli_num_rows($sql);
 
     if ($num_rows > 0) {
         $delimiter = ",";
         $enclosure = '"';
-        $escape    = '\\';   // backslash
+        $escape = '\\';   // backslash
         $filename = sanitize_filename($file_name_prepend . "Certificates-" . date('Y-m-d_H-i-s') . ".csv");
 
         //create a file pointer
@@ -243,7 +284,7 @@ if (isset($_POST['export_certificates_csv'])) {
         fputcsv($f, $fields, $delimiter, $enclosure, $escape);
 
         //output each row of the data, format line as csv and write to file pointer
-        while($row = $sql->fetch_assoc()) {
+        while ($row = $sql->fetch_assoc()) {
             $lineData = array($row['certificate_name'], $row['certificate_description'], $row['certificate_domain'], $row['certificate_issued_by'], $row['certificate_expire']);
             fputcsv($f, $lineData, $delimiter, $enclosure, $escape);
         }

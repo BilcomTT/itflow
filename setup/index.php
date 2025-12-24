@@ -54,7 +54,7 @@ if (isset($_POST['add_database'])) {
     $database = filter_var(trim($_POST['database']), FILTER_SANITIZE_STRING);
     $username = filter_var(trim($_POST['username']), FILTER_SANITIZE_STRING);
     $password = filter_var(trim($_POST['password']), FILTER_SANITIZE_STRING);
-    $config_base_url = $_SERVER['HTTP_HOST'] . dirname($_SERVER['REQUEST_URI']);
+    $config_base_url = filter_var(trim($_POST['config_base_url']), FILTER_SANITIZE_STRING);
     $config_base_url = rtrim($config_base_url, '/');
 
     $installation_id = randomString(32);
@@ -1157,6 +1157,17 @@ if (isset($_POST['add_telemetry'])) {
                                             </div>
                                             <input type="text" class="form-control" name="host" value="localhost" placeholder="Database Host" required>
                                         </div>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label>Base URL <strong class="text-danger">*</strong></label>
+                                        <div class="input-group">
+                                            <div class="input-group-prepend">
+                                                <span class="input-group-text"><i class="fa fa-fw fa-globe"></i></span>
+                                            </div>
+                                            <input type="text" class="form-control" name="config_base_url" value="<?php echo $_SERVER['HTTP_HOST']; ?>" placeholder="itflow.example.com" required>
+                                        </div>
+                                        <small class="form-text text-muted">The domain name where ITFlow is installed (e.g. itflow.example.com). Do not include http:// or https://</small>
                                     </div>
 
                                     <br>

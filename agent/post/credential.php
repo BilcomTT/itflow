@@ -6,25 +6,35 @@
 
 defined('FROM_POST_HANDLER') || die("Direct file access is not allowed");
 
+// Webhook functions
+require_once dirname(__FILE__) . "/../../includes/webhook_functions.php";
+
 if (isset($_POST['add_credential'])) {
 
     enforceUserPermission('module_credential', 2);
 
     require_once 'credential_model.php';
 
-    mysqli_query($mysqli,"INSERT INTO credentials SET credential_name = '$name', credential_description = '$description', credential_uri = '$uri', credential_uri_2 = '$uri_2', credential_username = '$username', credential_password = '$password', credential_otp_secret = '$otp_secret', credential_note = '$note', credential_important = $important, credential_contact_id = $contact_id, credential_asset_id = $asset_id, credential_client_id = $client_id");
+    mysqli_query($mysqli, "INSERT INTO credentials SET credential_name = '$name', credential_description = '$description', credential_uri = '$uri', credential_uri_2 = '$uri_2', credential_username = '$username', credential_password = '$password', credential_otp_secret = '$otp_secret', credential_note = '$note', credential_important = $important, credential_contact_id = $contact_id, credential_asset_id = $asset_id, credential_client_id = $client_id");
 
     $credential_id = mysqli_insert_id($mysqli);
 
-     // Add Tags
+    // Add Tags
     if (isset($_POST['tags'])) {
-        foreach($_POST['tags'] as $tag) {
+        foreach ($_POST['tags'] as $tag) {
             $tag = intval($tag);
             mysqli_query($mysqli, "INSERT INTO credential_tags SET credential_id = $credential_id, tag_id = $tag");
         }
     }
 
     logAction("Credential", "Create", "$session_name created credential $name", $client_id, $credential_id);
+
+    triggerWebhook('password.created', [
+        'password_id' => $credential_id,
+        'password_name' => $name,
+        'client_id' => $client_id,
+        'created_by' => $session_name
+    ], $client_id);
 
     flash_alert("Credential <strong>$name</strong> created");
 
@@ -49,15 +59,15 @@ if (isset($_POST['edit_credential'])) {
     }
 
     // Update the credential entry with the new details
-    mysqli_query($mysqli,"UPDATE credentials SET credential_name = '$name', credential_description = '$description', credential_uri = '$uri', credential_uri_2 = '$uri_2', credential_username = '$username', credential_password = '$password', credential_otp_secret = '$otp_secret', credential_note = '$note', credential_important = $important, credential_contact_id = $contact_id, credential_asset_id = $asset_id WHERE credential_id = $credential_id");
+    mysqli_query($mysqli, "UPDATE credentials SET credential_name = '$name', credential_description = '$description', credential_uri = '$uri', credential_uri_2 = '$uri_2', credential_username = '$username', credential_password = '$password', credential_otp_secret = '$otp_secret', credential_note = '$note', credential_important = $important, credential_contact_id = $contact_id, credential_asset_id = $asset_id WHERE credential_id = $credential_id");
 
     // Tags
     // Delete existing tags
     mysqli_query($mysqli, "DELETE FROM credential_tags WHERE credential_id = $credential_id");
 
     // Add new tags
-    if(isset($_POST['tags'])) {
-        foreach($_POST['tags'] as $tag) {
+    if (isset($_POST['tags'])) {
+        foreach ($_POST['tags'] as $tag) {
             $tag = intval($tag);
             mysqli_query($mysqli, "INSERT INTO credential_tags SET credential_id = $credential_id, tag_id = $tag");
         }
@@ -65,27 +75,42 @@ if (isset($_POST['edit_credential'])) {
 
     logAction("Credential", "Edit", "$session_name edited credential $name", $client_id, $credential_id);
 
+    triggerWebhook('password.updated', [
+        'password_id' => $credential_id,
+        'password_name' => $name,
+        'client_id' => $client_id,
+        'updated_by' => $session_name
+    ], $client_id);
+
     flash_alert("Credential <strong>$name</strong> edited");
 
     redirect();
 
 }
 
-if(isset($_GET['archive_credential'])){
+if (isset($_GET['archive_credential'])) {
 
     enforceUserPermission('module_credential', 2);
 
     $credential_id = intval($_GET['archive_credential']);
 
     // Get Name and Client ID for logging and alert message
-    $sql = mysqli_query($mysqli,"SELECT credential_name, credential_client_id FROM credentials WHERE credential_id = $credential_id");
+    $sql = mysqli_query($mysqli, "SELECT credential_name, credential_client_id FROM credentials WHERE credential_id = $credential_id");
     $row = mysqli_fetch_array($sql);
     $credential_name = sanitizeInput($row['credential_name']);
     $client_id = intval($row['credential_client_id']);
 
-    mysqli_query($mysqli,"UPDATE credentials SET credential_archived_at = NOW() WHERE credential_id = $credential_id");
+    mysqli_query($mysqli, "UPDATE credentials SET credential_archived_at = NOW() WHERE credential_id = $credential_id");
 
     logAction("Credential", "Archive", "$session_name archived credential $credential_name", $client_id, $credential_id);
+
+    // Trigger webhook for password archived
+    triggerWebhook('password.archived', [
+        'password_id' => $credential_id,
+        'password_name' => $credential_name,
+        'client_id' => $client_id,
+        'archived_by' => $session_name
+    ], $client_id);
 
     flash_alert("Credential <strong>$credential_name</strong> archived", 'error');
 
@@ -93,19 +118,19 @@ if(isset($_GET['archive_credential'])){
 
 }
 
-if(isset($_GET['unarchive_credential'])){
+if (isset($_GET['unarchive_credential'])) {
 
     enforceUserPermission('module_credential', 2);
 
     $credential_id = intval($_GET['unarchive_credential']);
 
     // Get Name and Client ID for logging and alert message
-    $sql = mysqli_query($mysqli,"SELECT credential_name, credential_client_id FROM credentials WHERE credential_id = $credential_id");
+    $sql = mysqli_query($mysqli, "SELECT credential_name, credential_client_id FROM credentials WHERE credential_id = $credential_id");
     $row = mysqli_fetch_array($sql);
     $credential_name = sanitizeInput($row['credential_name']);
     $client_id = intval($row['credential_client_id']);
 
-    mysqli_query($mysqli,"UPDATE credentials SET credential_archived_at = NULL WHERE credential_id = $credential_id");
+    mysqli_query($mysqli, "UPDATE credentials SET credential_archived_at = NULL WHERE credential_id = $credential_id");
 
     logAction("Credential", "Unarchive", "$session_name unarchived credential $credential_name", $client_id, $credential_id);
 
@@ -122,14 +147,22 @@ if (isset($_GET['delete_credential'])) {
     $credential_id = intval($_GET['delete_credential']);
 
     // Get Credential Name and Client ID for logging and alert message
-    $sql = mysqli_query($mysqli,"SELECT credential_name, credential_client_id FROM credentials WHERE credential_id = $credential_id");
+    $sql = mysqli_query($mysqli, "SELECT credential_name, credential_client_id FROM credentials WHERE credential_id = $credential_id");
     $row = mysqli_fetch_array($sql);
     $credential_name = sanitizeInput($row['credential_name']);
     $client_id = intval($row['credential_client_id']);
 
-    mysqli_query($mysqli,"DELETE FROM credentials WHERE credential_id = $credential_id");
+    mysqli_query($mysqli, "DELETE FROM credentials WHERE credential_id = $credential_id");
 
     logAction("Credential", "Delete", "$session_name deleted credential $credential_name", $client_id);
+
+    triggerWebhook('password.deleted', [
+        'password_id' => $credential_id,
+        'password_name' => $credential_name,
+        'client_id' => $client_id,
+        'deleted_by' => $session_name
+    ], $client_id);
+
 
     flash_alert("Credential <strong>$credential_name</strong> deleted", 'error');
 
@@ -147,26 +180,26 @@ if (isset($_POST['bulk_assign_credential_tags'])) {
         // Get Selected Credential Count
         $count = count($_POST['credential_ids']);
 
-        foreach($_POST['credential_ids'] as $credential_id) {
+        foreach ($_POST['credential_ids'] as $credential_id) {
             $credential_id = intval($credential_id);
 
             // Get Contact Details for Logging
-            $sql = mysqli_query($mysqli,"SELECT credential_name, credential_client_id FROM credentials WHERE credential_id = $credential_id");
+            $sql = mysqli_query($mysqli, "SELECT credential_name, credential_client_id FROM credentials WHERE credential_id = $credential_id");
             $row = mysqli_fetch_array($sql);
             $credential_name = sanitizeInput($row['credential_name']);
             $client_id = intval($row['credential_client_id']);
 
-            if($_POST['bulk_remove_tags']) {
+            if ($_POST['bulk_remove_tags']) {
                 // Delete tags if chosed to do so
                 mysqli_query($mysqli, "DELETE FROM credential_tags WHERE credential_id = $credential_id");
             }
 
             // Add new tags
             if (isset($_POST['bulk_tags'])) {
-                foreach($_POST['bulk_tags'] as $tag) {
+                foreach ($_POST['bulk_tags'] as $tag) {
                     $tag = intval($tag);
 
-                    $sql = mysqli_query($mysqli,"SELECT * FROM credential_tags WHERE credential_id = $credential_id AND tag_id = $tag");
+                    $sql = mysqli_query($mysqli, "SELECT * FROM credential_tags WHERE credential_id = $credential_id AND tag_id = $tag");
                     if (mysqli_num_rows($sql) == 0) {
                         mysqli_query($mysqli, "INSERT INTO credential_tags SET credential_id = $credential_id, tag_id = $tag");
                     }
@@ -204,12 +237,12 @@ if (isset($_POST['bulk_archive_credentials'])) {
             $credential_id = intval($credential_id);
 
             // Get Name and Client ID for logging and alert message
-            $sql = mysqli_query($mysqli,"SELECT credential_name, credential_client_id FROM credentials WHERE credential_id = $credential_id");
+            $sql = mysqli_query($mysqli, "SELECT credential_name, credential_client_id FROM credentials WHERE credential_id = $credential_id");
             $row = mysqli_fetch_array($sql);
             $credential_name = sanitizeInput($row['credential_name']);
             $client_id = intval($row['credential_client_id']);
 
-            mysqli_query($mysqli,"UPDATE credentials SET credential_archived_at = NOW() WHERE credential_id = $credential_id");
+            mysqli_query($mysqli, "UPDATE credentials SET credential_archived_at = NOW() WHERE credential_id = $credential_id");
 
             logAction("Credential", "Archive", "$session_name archived credential $credential_name", $client_id, $credential_id);
         }
@@ -241,12 +274,12 @@ if (isset($_POST['bulk_unarchive_credentials'])) {
             $credential_id = intval($credential_id);
 
             // Get Name and Client ID for logging and alert message
-            $sql = mysqli_query($mysqli,"SELECT credential_name, credential_client_id FROM credentials WHERE credential_id = $credential_id");
+            $sql = mysqli_query($mysqli, "SELECT credential_name, credential_client_id FROM credentials WHERE credential_id = $credential_id");
             $row = mysqli_fetch_array($sql);
             $credential_name = sanitizeInput($row['credential_name']);
             $client_id = intval($row['credential_client_id']);
 
-            mysqli_query($mysqli,"UPDATE credentials SET credential_archived_at = NULL WHERE credential_id = $credential_id");
+            mysqli_query($mysqli, "UPDATE credentials SET credential_archived_at = NULL WHERE credential_id = $credential_id");
 
             logAction("Credential", "Unarchive", "$session_name unarchived credential $credential_name", $client_id, $credential_id);
 
@@ -279,7 +312,7 @@ if (isset($_POST['bulk_delete_credentials'])) {
             $credential_id = intval($credential_id);
 
             // Get Name and Client ID for logging and alert message
-            $sql = mysqli_query($mysqli,"SELECT credential_name, credential_client_id FROM credentials WHERE credential_id = $credential_id");
+            $sql = mysqli_query($mysqli, "SELECT credential_name, credential_client_id FROM credentials WHERE credential_id = $credential_id");
             $row = mysqli_fetch_array($sql);
             $credential_name = sanitizeInput($row['credential_name']);
             $client_id = intval($row['credential_client_id']);
@@ -287,6 +320,13 @@ if (isset($_POST['bulk_delete_credentials'])) {
             mysqli_query($mysqli, "DELETE FROM credentials WHERE credential_id = $credential_id AND credential_client_id = $client_id");
 
             logAction("Credential", "Delete", "$session_name deleted credential $credential_name", $client_id);
+
+            triggerWebhook('password.deleted', [
+                'password_id' => $credential_id,
+                'password_name' => $credential_name,
+                'client_id' => $client_id,
+                'deleted_by' => $session_name
+            ], $client_id);
 
         }
 
@@ -316,13 +356,13 @@ if (isset($_POST['export_credentials_csv'])) {
     }
 
     //get records from database
-    $sql = mysqli_query($mysqli,"SELECT * FROM credentials LEFT JOIN clients ON client_id = credential_client_id WHERE credential_archived_at IS NULL $client_query ORDER BY credential_name ASC");
+    $sql = mysqli_query($mysqli, "SELECT * FROM credentials LEFT JOIN clients ON client_id = credential_client_id WHERE credential_archived_at IS NULL $client_query ORDER BY credential_name ASC");
     $num_rows = mysqli_num_rows($sql);
 
     if ($num_rows > 0) {
         $delimiter = ",";
         $enclosure = '"';
-        $escape    = '\\';   // backslash
+        $escape = '\\';   // backslash
         $filename = sanitize_filename($file_name_prepend . "Credentials-" . date('Y-m-d_H-i-s') . ".csv");
 
         //create a file pointer
@@ -333,7 +373,7 @@ if (isset($_POST['export_credentials_csv'])) {
         fputcsv($f, $fields, $delimiter, $enclosure, $escape);
 
         //output each row of the data, format line as csv and write to file pointer
-        while($row = mysqli_fetch_assoc($sql)){
+        while ($row = mysqli_fetch_assoc($sql)) {
             $credential_username = decryptCredentialEntry($row['credential_username']);
             $credential_password = decryptCredentialEntry($row['credential_password']);
             $lineData = array($row['credential_name'], $row['credential_description'], $credential_username, $credential_password, $row['credential_otp_secret'], $row['credential_uri']);
@@ -372,15 +412,15 @@ if (isset($_POST["import_credentials_csv"])) {
     }
 
     //Check file is CSV
-    $file_extension = strtolower(end(explode('.',$_FILES['file']['name'])));
+    $file_extension = strtolower(end(explode('.', $_FILES['file']['name'])));
     $allowed_file_extensions = array('csv');
-    if (in_array($file_extension,$allowed_file_extensions) === false){
+    if (in_array($file_extension, $allowed_file_extensions) === false) {
         $error = true;
         flash_alert("Bad file extension", 'error');
     }
 
     //Check file isn't empty
-    elseif ($_FILES["file"]["size"] < 1){
+    elseif ($_FILES["file"]["size"] < 1) {
         $error = true;
         flash_alert("Bad file size (empty?)", 'error');
     }
@@ -394,17 +434,17 @@ if (isset($_POST["import_credentials_csv"])) {
     }
 
     //Else, parse the file
-    if (!$error){
+    if (!$error) {
         $file = fopen($file_name, "r");
         fgetcsv($file, 1000, ","); // Skip first line
         $row_count = 0;
         $duplicate_count = 0;
-        while(($column = fgetcsv($file, 1000, ",")) !== false){
+        while (($column = fgetcsv($file, 1000, ",")) !== false) {
             $duplicate_detect = 0;
             // Name
             if (isset($column[0])) {
                 $name = sanitizeInput($column[0]);
-                if (mysqli_num_rows(mysqli_query($mysqli,"SELECT * FROM credentials WHERE credential_name = '$name' AND credential_client_id = $client_id")) > 0){
+                if (mysqli_num_rows(mysqli_query($mysqli, "SELECT * FROM credentials WHERE credential_name = '$name' AND credential_client_id = $client_id")) > 0) {
                     $duplicate_detect = 1;
                 }
             }
@@ -430,9 +470,9 @@ if (isset($_POST["import_credentials_csv"])) {
             }
 
             // Check if duplicate was detected
-            if ($duplicate_detect == 0){
+            if ($duplicate_detect == 0) {
                 //Add
-                mysqli_query($mysqli,"INSERT INTO credentials SET credential_name = '$name', credential_description = '$description', credential_uri = '$uri', credential_username = '$username', credential_password = '$password', credential_otp_secret = '$totp', credential_client_id = $client_id");
+                mysqli_query($mysqli, "INSERT INTO credentials SET credential_name = '$name', credential_description = '$description', credential_uri = '$uri', credential_username = '$username', credential_password = '$password', credential_otp_secret = '$totp', credential_client_id = $client_id");
                 $row_count = $row_count + 1;
             } else {
                 $duplicate_count = $duplicate_count + 1;
@@ -457,7 +497,7 @@ if (isset($_GET['download_credentials_csv_template'])) {
 
     $delimiter = ",";
     $enclosure = '"';
-    $escape    = '\\';
+    $escape = '\\';
     $filename = "Credentials-Template.csv";
 
     //create a file pointer

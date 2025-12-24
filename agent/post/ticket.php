@@ -6,6 +6,9 @@
 
 defined('FROM_POST_HANDLER') || die("Direct file access is not allowed");
 
+// Webhook functions are now in includes/webhook_functions.php
+require_once dirname(__FILE__) . "/../../includes/webhook_functions.php";
+
 if (isset($_POST['add_ticket'])) {
 
     enforceUserPermission('module_support', 2);
@@ -75,7 +78,7 @@ if (isset($_POST['add_ticket'])) {
     $ticket_id = mysqli_insert_id($mysqli);
 
     // Add Tasks from Template if Template was selected
-    if($ticket_template_id) {
+    if ($ticket_template_id) {
         // Get Associated Tasks from the ticket template
         $sql_task_templates = mysqli_query($mysqli, "SELECT * FROM task_templates WHERE task_template_ticket_template_id = $ticket_template_id");
 
@@ -85,7 +88,7 @@ if (isset($_POST['add_ticket'])) {
                 $task_name = sanitizeInput($row['task_template_name']);
                 $task_completion_estimate = intval($row['task_template_completion_estimate']);
 
-                mysqli_query($mysqli,"INSERT INTO tasks SET task_name = '$task_name', task_order = $task_order, task_completion_estimate = $task_completion_estimate, task_ticket_id = $ticket_id");
+                mysqli_query($mysqli, "INSERT INTO tasks SET task_name = '$task_name', task_order = $task_order, task_completion_estimate = $task_completion_estimate, task_ticket_id = $ticket_id");
             }
         }
     }
@@ -185,6 +188,18 @@ if (isset($_POST['add_ticket'])) {
     customAction('ticket_create', $ticket_id);
 
     logAction("Ticket", "Create", "$session_name created ticket $config_ticket_prefix$ticket_number - $ticket_subject", $client_id, $ticket_id);
+
+    // Trigger webhook for ticket created
+    triggerWebhook('ticket.created', [
+        'ticket_id' => $ticket_id,
+        'ticket_number' => $config_ticket_prefix . $ticket_number,
+        'ticket_subject' => $subject,
+        'ticket_priority' => $priority,
+        'ticket_status' => $ticket_status,
+        'client_id' => $client_id,
+        'assigned_to' => $assigned_to,
+        'created_by' => $session_name
+    ], $client_id);
 
     flash_alert("Ticket <strong>$config_ticket_prefix$ticket_number</strong> created");
 
@@ -294,6 +309,16 @@ if (isset($_POST['edit_ticket'])) {
 
     logAction("Ticket", "Edit", "$session_name edited ticket $ticket_prefix$ticket_number", $client_id, $ticket_id);
 
+    // Trigger webhook for ticket updated
+    triggerWebhook('ticket.updated', [
+        'ticket_id' => $ticket_id,
+        'ticket_number' => $ticket_prefix . $ticket_number,
+        'ticket_subject' => $ticket_subject,
+        'ticket_priority' => $ticket_priority,
+        'client_id' => $client_id,
+        'updated_by' => $session_name
+    ], $client_id);
+
     flash_alert("Ticket <strong>$ticket_prefix$ticket_number</strong> updated");
 
     redirect();
@@ -309,7 +334,9 @@ if (isset($_POST['edit_ticket_priority'])) {
     $client_id = intval($_POST['client_id']);
 
     // Get ticket details before updating
-    $sql = mysqli_query($mysqli, "SELECT
+    $sql = mysqli_query(
+        $mysqli,
+        "SELECT
         ticket_prefix, ticket_number, ticket_priority, ticket_status_name, ticket_client_id
         FROM tickets
         LEFT JOIN ticket_statuses ON ticket_status = ticket_status_id
@@ -329,6 +356,15 @@ if (isset($_POST['edit_ticket_priority'])) {
 
     logAction("Ticket", "Edit", "$session_name changed priority from $original_priority to $priority for ticket $ticket_prefix$ticket_number", $client_id, $ticket_id);
 
+    triggerWebhook('ticket.priority_changed', [
+        'ticket_id' => $ticket_id,
+        'ticket_number' => $ticket_prefix . $ticket_number,
+        'old_priority' => $original_priority,
+        'new_priority' => $priority,
+        'client_id' => $client_id,
+        'updated_by' => $session_name
+    ], $client_id);
+
     customAction('ticket_update', $ticket_id);
 
     flash_alert("Priority updated from <strong>$original_priority</strong> to <strong>$priority</strong>");
@@ -346,7 +382,9 @@ if (isset($_POST['edit_ticket_contact'])) {
     $notify = intval($_POST['contact_notify']) ?? 0;
 
     // Get Original contact, and ticket details
-    $sql = mysqli_query($mysqli, "SELECT
+    $sql = mysqli_query(
+        $mysqli,
+        "SELECT
         contact_name, ticket_prefix, ticket_number, ticket_status_name, ticket_subject, ticket_details, ticket_url_key, ticket_client_id
         FROM tickets
         LEFT JOIN contacts ON ticket_contact_id = contact_id
@@ -528,7 +566,9 @@ if (isset($_GET['delete_ticket_watcher'])) {
     $watcher_id = intval($_GET['delete_ticket_watcher']);
 
     // Get ticket / watcher details for logging
-    $sql = mysqli_query($mysqli, "SELECT watcher_email, ticket_prefix, ticket_number, ticket_status_name, ticket_client_id, ticket_id FROM ticket_watchers
+    $sql = mysqli_query(
+        $mysqli,
+        "SELECT watcher_email, ticket_prefix, ticket_number, ticket_status_name, ticket_client_id, ticket_id FROM ticket_watchers
         LEFT JOIN tickets ON watcher_ticket_id = ticket_id
         LEFT JOIN ticket_statuses ON ticket_status = ticket_status_id
         WHERE watcher_id = $watcher_id"
@@ -563,7 +603,9 @@ if (isset($_GET['delete_ticket_additional_asset'])) {
     $ticket_id = intval($_GET['ticket_id']);
 
     // Get ticket / asset details for logging
-    $sql = mysqli_query($mysqli, "SELECT asset_name, ticket_prefix, ticket_number, ticket_status_name, ticket_client_id FROM assets
+    $sql = mysqli_query(
+        $mysqli,
+        "SELECT asset_name, ticket_prefix, ticket_number, ticket_status_name, ticket_client_id FROM assets
         JOIN tickets ON ticket_id = $ticket_id
         JOIN ticket_statuses ON ticket_status = ticket_status_id
         WHERE asset_id = $asset_id"
@@ -612,7 +654,9 @@ if (isset($_POST['edit_ticket_asset'])) {
     }
 
     // Get ticket / asset details for logging
-    $sql = mysqli_query($mysqli, "SELECT asset_name, ticket_prefix, ticket_number, ticket_status_name, ticket_client_id FROM assets
+    $sql = mysqli_query(
+        $mysqli,
+        "SELECT asset_name, ticket_prefix, ticket_number, ticket_status_name, ticket_client_id FROM assets
         LEFT JOIN tickets ON ticket_asset_id = asset_id
         LEFT JOIN ticket_statuses ON ticket_status = ticket_status_id
         WHERE ticket_id = $ticket_id"
@@ -643,7 +687,9 @@ if (isset($_POST['edit_ticket_vendor'])) {
     mysqli_query($mysqli, "UPDATE tickets SET ticket_vendor_id = $vendor_id WHERE ticket_id = $ticket_id");
 
     // Get ticket / vendor details for logging
-    $sql = mysqli_query($mysqli, "SELECT vendor_name, ticket_prefix, ticket_number, ticket_status_name, ticket_client_id FROM vendors
+    $sql = mysqli_query(
+        $mysqli,
+        "SELECT vendor_name, ticket_prefix, ticket_number, ticket_status_name, ticket_client_id FROM vendors
         LEFT JOIN tickets ON ticket_vendor_id = $vendor_id
         LEFT JOIN ticket_statuses ON ticket_status = ticket_status_id
         WHERE ticket_id = $ticket_id"
@@ -755,6 +801,17 @@ if (isset($_POST['assign_ticket'])) {
 
     customAction('ticket_assign', $ticket_id);
 
+    // Trigger webhook for ticket assigned
+    triggerWebhook('ticket.assigned', [
+        'ticket_id' => $ticket_id,
+        'ticket_number' => $ticket_prefix . $ticket_number,
+        'ticket_subject' => $ticket_subject,
+        'client_id' => $client_id,
+        'assigned_to' => $assigned_to,
+        'assigned_to_name' => $agent_name,
+        'assigned_by' => $session_name
+    ], $client_id);
+
     flash_alert("Ticket <strong>$ticket_prefix$ticket_number</strong> assigned to <strong>$agent_name</strong>");
 
     redirect();
@@ -796,6 +853,15 @@ if (isset($_GET['delete_ticket'])) {
         removeDirectory("../uploads/tickets/$ticket_id");
 
         // No Need to delete ticket assets as this is cascadely deleted via the database.
+
+        // Trigger webhook for ticket deleted
+        triggerWebhook('ticket.deleted', [
+            'ticket_id' => $ticket_id,
+            'ticket_number' => $ticket_prefix . $ticket_number,
+            'ticket_subject' => $ticket_subject,
+            'client_id' => $client_id,
+            'deleted_by' => $session_name
+        ], $client_id);
 
         logAction("Ticket", "Delete", "$session_name deleted $ticket_prefix$ticket_number along with all replies", $client_id);
 
@@ -1092,6 +1158,15 @@ if (isset($_POST['bulk_merge_tickets'])) {
 
                 logAction("Ticket", "Merged", "$session_name Merged ticket $ticket_prefix$ticket_number into $ticket_prefix$merge_into_ticket_number", $client_id, $ticket_id);
 
+                triggerWebhook('ticket.merged', [
+                    'ticket_id' => $ticket_id,
+                    'merged_into_ticket_id' => $merge_into_ticket_id,
+                    'ticket_number' => $ticket_prefix . $ticket_number,
+                    'merged_into_ticket_number' => $ticket_prefix . $merge_into_ticket_number,
+                    'client_id' => $client_id,
+                    'merged_by' => $session_name
+                ], $client_id);
+
                 // Custom action/notif handler
                 customAction('ticket_merge', $ticket_id);
 
@@ -1230,7 +1305,7 @@ if (isset($_POST['bulk_resolve_tickets'])) {
                     addToMailQueue($data);
                 } // End Mail IF
             } else {
-                 $skipped_count++;
+                $skipped_count++;
             } // End Task Check
         } // End Loop
     } // End Array Empty Check
@@ -1292,6 +1367,17 @@ if (isset($_POST['bulk_ticket_reply'])) {
 
             // Update Ticket Status
             mysqli_query($mysqli, "UPDATE tickets SET ticket_status = '$ticket_status' WHERE ticket_id = $ticket_id");
+
+            if ($row['ticket_status'] != $ticket_status) {
+                triggerWebhook('ticket.status_changed', [
+                    'ticket_id' => $ticket_id,
+                    'ticket_number' => $ticket_prefix . $ticket_number,
+                    'old_status' => $row['ticket_status'],
+                    'new_status' => $ticket_status,
+                    'client_id' => $client_id,
+                    'updated_by' => $session_name
+                ], $client_id);
+            }
 
             logAction("Ticket", "Reply", "$session_name replied to ticket $ticket_prefix$ticket_number - $ticket_subject and was a $ticket_reply_type reply", $client_id, $ticket_id);
 
@@ -1471,12 +1557,12 @@ if (isset($_POST['bulk_add_asset_ticket'])) {
     $billable = intval($_POST['bulk_billable'] ?? 0);
 
     // Check to see if adding a ticket by template
-    if($ticket_template_id) {
+    if ($ticket_template_id) {
         $sql = mysqli_query($mysqli, "SELECT * FROM ticket_templates WHERE ticket_template_id = $ticket_template_id");
         $row = mysqli_fetch_array($sql);
 
         // Override Template Subject
-        if(empty($subject)) {
+        if (empty($subject)) {
             $subject = sanitizeInput($row['ticket_template_subject']);
         }
         $details = mysqli_escape_string($mysqli, $row['ticket_template_details']);
@@ -1533,19 +1619,19 @@ if (isset($_POST['bulk_add_asset_ticket'])) {
                     $task_name = sanitizeInput($task);
                     // Check that task_name is not-empty (For some reason the !empty on the array doesnt work here like in watchers)
                     if (!empty($task_name)) {
-                        mysqli_query($mysqli,"INSERT INTO tasks SET task_name = '$task_name', task_ticket_id = $ticket_id");
+                        mysqli_query($mysqli, "INSERT INTO tasks SET task_name = '$task_name', task_ticket_id = $ticket_id");
                     }
                 }
             }
 
             // Add Tasks from Template if Template was selected
-            if($ticket_template_id) {
+            if ($ticket_template_id) {
                 if (mysqli_num_rows($sql_task_templates) > 0) {
                     while ($row = mysqli_fetch_array($sql_task_templates)) {
                         $task_order = intval($row['task_template_order']);
                         $task_name = sanitizeInput($row['task_template_name']);
 
-                        mysqli_query($mysqli,"INSERT INTO tasks SET task_name = '$task_name', task_order = $task_order, task_ticket_id = $ticket_id");
+                        mysqli_query($mysqli, "INSERT INTO tasks SET task_name = '$task_name', task_order = $task_order, task_ticket_id = $ticket_id");
                     }
                 }
             }
@@ -1582,9 +1668,9 @@ if (isset($_POST['add_ticket_reply'])) {
     // Defaults
     $send_email = 0;
     $ticket_reply_id = 0;
-    if ($_POST['public_reply_type'] == 1 ){
+    if ($_POST['public_reply_type'] == 1) {
         $ticket_reply_type = 'Public';
-    } elseif ($_POST['public_reply_type'] == 2 ) {
+    } elseif ($_POST['public_reply_type'] == 2) {
         $ticket_reply_type = 'Public';
         $send_email = 1;
     } else {
@@ -1592,13 +1678,29 @@ if (isset($_POST['add_ticket_reply'])) {
     }
     // Add Signature to the end of the ticket reply if not Internal and if there is reply
     if ($ticket_reply !== '' && $ticket_reply_type !== 'Internal') {
-        $ticket_reply .= getFieldById('user_settings',$session_user_id,'user_config_signature', 'raw');
+        $ticket_reply .= getFieldById('user_settings', $session_user_id, 'user_config_signature', 'raw');
     }
 
     $ticket_reply = mysqli_escape_string($mysqli, $ticket_reply); // SQL Escape Ticket Reply
 
+    // Get original status for webhook
+    $old_status_sql = mysqli_query($mysqli, "SELECT ticket_status FROM tickets WHERE ticket_id = $ticket_id");
+    $old_status_row = mysqli_fetch_array($old_status_sql);
+    $original_status = intval($old_status_row['ticket_status']);
+
     // Update Ticket Status & updated at (in case status didn't change)
     mysqli_query($mysqli, "UPDATE tickets SET ticket_status = $ticket_status, ticket_updated_at = NOW() WHERE ticket_id = $ticket_id");
+
+    if ($original_status != $ticket_status) {
+        triggerWebhook('ticket.status_changed', [
+            'ticket_id' => $ticket_id,
+            'ticket_number' => getFieldById('tickets', $ticket_id, 'ticket_prefix') . getFieldById('tickets', $ticket_id, 'ticket_number'),
+            'old_status' => $original_status,
+            'new_status' => $ticket_status,
+            'client_id' => $client_id,
+            'updated_by' => $session_name
+        ], $client_id);
+    }
 
     // Resolve the ticket, if set
     if ($ticket_status == 4) {
@@ -1614,6 +1716,15 @@ if (isset($_POST['add_ticket_reply'])) {
         mysqli_query($mysqli, "INSERT INTO ticket_replies SET ticket_reply = '$ticket_reply', ticket_reply_time_worked = '$ticket_reply_time_worked', ticket_reply_type = '$ticket_reply_type', ticket_reply_by = $session_user_id, ticket_reply_ticket_id = $ticket_id");
 
         $ticket_reply_id = mysqli_insert_id($mysqli);
+
+        // Trigger webhook for ticket replied
+        triggerWebhook('ticket.replied', [
+            'ticket_id' => $ticket_id,
+            'ticket_reply_id' => $ticket_reply_id,
+            'ticket_reply_type' => $ticket_reply_type,
+            'client_id' => $client_id,
+            'replied_by' => $session_name
+        ], $client_id);
 
         // Get Ticket Details
         $ticket_sql = mysqli_query($mysqli, "SELECT contact_name, contact_email, ticket_prefix, ticket_number, ticket_subject, ticket_status, ticket_status_name, ticket_url_key, ticket_first_response_at, ticket_created_by, ticket_assigned_to, ticket_client_id
@@ -1857,6 +1968,15 @@ if (isset($_POST['merge_ticket'])) {
 
     logAction("Ticket", "Merged", "$session_name Merged ticket $ticket_prefix$ticket_number into $ticket_prefix$merge_into_ticket_number");
 
+    triggerWebhook('ticket.merged', [
+        'ticket_id' => $ticket_id,
+        'merged_into_ticket_id' => $merge_into_ticket_id,
+        'ticket_number' => $ticket_prefix . $ticket_number,
+        'merged_into_ticket_number' => $ticket_prefix . $merge_into_ticket_number,
+        'client_id' => $client_id,
+        'merged_by' => $session_name
+    ], $client_id);
+
     customAction('ticket_merge', $ticket_id);
 
     flash_alert("Ticket merged into $ticket_prefix$merge_into_ticket_number");
@@ -1912,6 +2032,16 @@ if (isset($_GET['resolve_ticket'])) {
     mysqli_query($mysqli, "UPDATE tickets SET ticket_status = 4, ticket_resolved_at = NOW() WHERE ticket_id = $ticket_id");
 
     logAction("Ticket", "Resolved", "$session_name resolved ticket $ticket_prefix$ticket_number (ID: $ticket_id)", 0, $ticket_id);
+
+    // Trigger webhook for ticket status changed
+    triggerWebhook('ticket.status_changed', [
+        'ticket_id' => $ticket_id,
+        'ticket_number' => $ticket_prefix . $ticket_number,
+        'old_status' => $row['ticket_status'],
+        'new_status' => 4,
+        'client_id' => intval($row['ticket_client_id']),
+        'updated_by' => $session_name
+    ], intval($row['ticket_client_id']));
 
     customAction('ticket_resolve', $ticket_id);
 
@@ -2004,11 +2134,28 @@ if (isset($_GET['close_ticket'])) {
 
     $ticket_id = intval($_GET['close_ticket']);
 
+    // Get ticket details before closing
+    $sql = mysqli_query($mysqli, "SELECT * FROM tickets WHERE ticket_id = $ticket_id");
+    $row = mysqli_fetch_array($sql);
+    $ticket_prefix = sanitizeInput($row['ticket_prefix']);
+    $ticket_number = intval($row['ticket_number']);
+    $client_id = intval($row['ticket_client_id']);
+
     mysqli_query($mysqli, "UPDATE tickets SET ticket_status = 5, ticket_closed_at = NOW(), ticket_closed_by = $session_user_id WHERE ticket_id = $ticket_id") or die(mysqli_error($mysqli));
 
     mysqli_query($mysqli, "INSERT INTO ticket_replies SET ticket_reply = 'Ticket closed.', ticket_reply_type = 'Internal', ticket_reply_time_worked = '00:01:00', ticket_reply_by = $session_user_id, ticket_reply_ticket_id = $ticket_id");
 
     logAction("Ticket", "Closed", "$session_name closed ticket ID $ticket_id", 0, $ticket_id);
+
+    // Trigger webhook for ticket status changed
+    triggerWebhook('ticket.status_changed', [
+        'ticket_id' => $ticket_id,
+        'ticket_number' => $ticket_prefix . $ticket_number,
+        'old_status' => $row['ticket_status'],
+        'new_status' => 5,
+        'client_id' => $client_id,
+        'updated_by' => $session_name
+    ], $client_id);
 
     customAction('ticket_close', $ticket_id);
 
@@ -2098,6 +2245,13 @@ if (isset($_GET['reopen_ticket'])) {
     mysqli_query($mysqli, "UPDATE tickets SET ticket_status = 2, ticket_resolved_at = NULL WHERE ticket_id = $ticket_id");
 
     logAction("Ticket", "Reopened", "$session_name reopened ticket ID $ticket_id", 0, $ticket_id);
+
+    triggerWebhook('ticket.reopened', [
+        'ticket_id' => $ticket_id,
+        'ticket_number' => getFieldById('tickets', $ticket_id, 'ticket_prefix') . getFieldById('tickets', $ticket_id, 'ticket_number'),
+        'client_id' => intval(getFieldById('tickets', $ticket_id, 'ticket_client_id')),
+        'reopened_by' => $session_name
+    ], intval(getFieldById('tickets', $ticket_id, 'ticket_client_id')));
 
     customAction('ticket_update', $ticket_id);
 
@@ -2249,7 +2403,7 @@ if (isset($_POST['export_tickets_csv'])) {
     if ($sql->num_rows > 0) {
         $delimiter = ",";
         $enclosure = '"';
-        $escape    = '\\';   // backslash
+        $escape = '\\';   // backslash
         $filename = sanitize_filename($file_name_prepend . "Tickets-" . date('Y-m-d_H-i-s') . ".csv");
 
         //create a file pointer
@@ -2286,7 +2440,7 @@ if (isset($_POST['edit_ticket_billable_status'])) {
 
     $ticket_id = intval($_POST['ticket_id']);
     $billable_status = intval($_POST['billable_status']);
-    if ($billable_status == 0 ) {
+    if ($billable_status == 0) {
         $billable_wording = "Not";
     }
 
@@ -2297,7 +2451,7 @@ if (isset($_POST['edit_ticket_billable_status'])) {
     $ticket_number = intval($row['ticket_number']);
     $client_id = intval($row['ticket_client_id']);
 
-    mysqli_query($mysqli,"UPDATE tickets SET ticket_billable = $billable_status WHERE ticket_id = $ticket_id");
+    mysqli_query($mysqli, "UPDATE tickets SET ticket_billable = $billable_status WHERE ticket_id = $ticket_id");
 
     logAction("Ticket", "Edit", "$session_name marked ticket $ticket_prefix$ticket_number as $billable_wording Billable", $client_id, $ticket_id);
 
@@ -2318,7 +2472,9 @@ if (isset($_POST['edit_ticket_schedule'])) {
     $full_ticket_url = "https://$config_base_url/client/ticket.php?ticket_id=$ticket_id";
     $ticket_link_html = "<a href=\"$full_ticket_url\">$ticket_link</a>";
 
-    mysqli_query($mysqli,"UPDATE tickets
+    mysqli_query(
+        $mysqli,
+        "UPDATE tickets
         SET ticket_schedule = '$schedule', ticket_onsite = $onsite
         WHERE ticket_id = $ticket_id"
     );
@@ -2372,14 +2528,14 @@ if (isset($_POST['edit_ticket_schedule'])) {
 
     // Notify the agent of the scheduled work
     $data[] = [
-            'from' => $config_ticket_from_email,
-            'from_name' => $config_ticket_from_name,
-            'recipient' => $user_email,
-            'recipient_name' => $user_name,
-            'subject' => "Ticket Scheduled - [$ticket_prefix$ticket_number] - $ticket_subject",
-            'body' => "Hello, " . $user_name . "<br><br>The ticket regarding $ticket_subject has been scheduled for $email_datetime.<br><br>--------------------------------<br><a href=\"https://$config_base_url/agent/ticket.php?ticket_id=$ticket_id\">$ticket_link</a><br>--------------------------------<br><br>Please do not reply to this email. <br><br>Ticket: $ticket_prefix$ticket_number<br>Subject: $ticket_subject<br>Portal: https://$config_base_url/agent/ticket.php?ticket_id=$ticket_id<br><br>~<br>$session_company_name<br>Support Department<br>$config_ticket_from_email",
-            'cal_str' => $cal_str
-        ];
+        'from' => $config_ticket_from_email,
+        'from_name' => $config_ticket_from_name,
+        'recipient' => $user_email,
+        'recipient_name' => $user_name,
+        'subject' => "Ticket Scheduled - [$ticket_prefix$ticket_number] - $ticket_subject",
+        'body' => "Hello, " . $user_name . "<br><br>The ticket regarding $ticket_subject has been scheduled for $email_datetime.<br><br>--------------------------------<br><a href=\"https://$config_base_url/agent/ticket.php?ticket_id=$ticket_id\">$ticket_link</a><br>--------------------------------<br><br>Please do not reply to this email. <br><br>Ticket: $ticket_prefix$ticket_number<br>Subject: $ticket_subject<br>Portal: https://$config_base_url/agent/ticket.php?ticket_id=$ticket_id<br><br>~<br>$session_company_name<br>Support Department<br>$config_ticket_from_email",
+        'cal_str' => $cal_str
+    ];
 
     if ($config_ticket_client_general_notifications) {
         // Notify the ticket contact of the scheduled work
@@ -2460,6 +2616,16 @@ if (isset($_POST['edit_ticket_schedule'])) {
 
     logAction("Ticket", "Edit", "$session_name edited ticket schedule", $client_id, $ticket_id);
 
+    // Trigger webhook for ticket scheduled
+    triggerWebhook('ticket.scheduled', [
+        'ticket_id' => $ticket_id,
+        'ticket_number' => $ticket_prefix . $ticket_number,
+        'scheduled_at' => $schedule,
+        'onsite' => $onsite,
+        'client_id' => $client_id,
+        'updated_by' => $session_name
+    ], $client_id);
+
     customAction('ticket_schedule', $ticket_id);
 
     if (empty($conflicting_tickets)) {
@@ -2523,15 +2689,15 @@ if (isset($_GET['cancel_ticket_schedule'])) {
 
     // Notify the agent of the cancellation
     $data[] = [
-            // User Email
-            'from' => $config_ticket_from_email,
-            'from_name' => $config_ticket_from_name,
-            'recipient' => $user_email,
-            'recipient_name' => $user_name,
-            'subject' => "Ticket Schedule Cancelled - [$ticket_prefix$ticket_number] - $ticket_subject",
-            'body' => "Hello, " . $user_name . "<br><br>Scheduled work for the ticket regarding $ticket_subject has been cancelled.<br><br>--------------------------------<br><a href=\"https://$config_base_url/agent/ticket.php?ticket_id=$ticket_id\">$ticket_link</a><br>--------------------------------<br><br>Please do not reply to this email. <br><br>Ticket: $ticket_prefix$ticket_number<br>Subject: $ticket_subject<br>Portal: https://$config_base_url/agent/ticket.php?id=$ticket_id<br><br>~<br>$session_company_name<br>Support Department<br>$config_ticket_from_email",
-            'cal_str' => $cal_str
-        ];
+        // User Email
+        'from' => $config_ticket_from_email,
+        'from_name' => $config_ticket_from_name,
+        'recipient' => $user_email,
+        'recipient_name' => $user_name,
+        'subject' => "Ticket Schedule Cancelled - [$ticket_prefix$ticket_number] - $ticket_subject",
+        'body' => "Hello, " . $user_name . "<br><br>Scheduled work for the ticket regarding $ticket_subject has been cancelled.<br><br>--------------------------------<br><a href=\"https://$config_base_url/agent/ticket.php?ticket_id=$ticket_id\">$ticket_link</a><br>--------------------------------<br><br>Please do not reply to this email. <br><br>Ticket: $ticket_prefix$ticket_number<br>Subject: $ticket_subject<br>Portal: https://$config_base_url/agent/ticket.php?id=$ticket_id<br><br>~<br>$session_company_name<br>Support Department<br>$config_ticket_from_email",
+        'cal_str' => $cal_str
+    ];
 
     if ($config_ticket_client_general_notifications) {
         // Notify the ticket contact of the cancellation
@@ -2610,6 +2776,14 @@ if (isset($_GET['cancel_ticket_schedule'])) {
     mysqli_query($mysqli, "INSERT INTO ticket_replies SET ticket_reply = '$ticket_reply_note', ticket_reply_type = 'Internal', ticket_reply_time_worked = '00:01:00', ticket_reply_by = $session_user_id, ticket_reply_ticket_id = $ticket_id");
 
     logAction("Ticket", "Edit", "$session_name cancelled ticket schedule", $client_id, $ticket_id);
+
+    // Trigger webhook for ticket unscheduled
+    triggerWebhook('ticket.unscheduled', [
+        'ticket_id' => $ticket_id,
+        'ticket_number' => $ticket_prefix . $ticket_number,
+        'client_id' => $client_id,
+        'updated_by' => $session_name
+    ], $client_id);
 
     customAction('ticket_unschedule', $ticket_id);
 

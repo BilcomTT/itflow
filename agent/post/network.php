@@ -6,17 +6,28 @@
 
 defined('FROM_POST_HANDLER') || die("Direct file access is not allowed");
 
+// Webhook functions
+require_once dirname(__FILE__) . "/../../includes/webhook_functions.php";
+
 if (isset($_POST['add_network'])) {
 
     enforceUserPermission('module_support', 2);
 
     require_once 'network_model.php';
 
-    mysqli_query($mysqli,"INSERT INTO networks SET network_name = '$name', network_description = '$description', network_vlan = $vlan, network = '$network', network_subnet = '$subnet', network_gateway = '$gateway', network_primary_dns = '$primary_dns', network_secondary_dns = '$secondary_dns', network_dhcp_range = '$dhcp_range', network_notes = '$notes', network_location_id = $location_id, network_client_id = $client_id");
+    mysqli_query($mysqli, "INSERT INTO networks SET network_name = '$name', network_description = '$description', network_vlan = $vlan, network = '$network', network_subnet = '$subnet', network_gateway = '$gateway', network_primary_dns = '$primary_dns', network_secondary_dns = '$secondary_dns', network_dhcp_range = '$dhcp_range', network_notes = '$notes', network_location_id = $location_id, network_client_id = $client_id");
 
     $network_id = mysqli_insert_id($mysqli);
 
     logAction("Network", "Create", "$session_name created network $name", $client_id, $network_id);
+
+    triggerWebhook('network.created', [
+        'network_id' => $network_id,
+        'network_name' => $name,
+        'network_address' => $network,
+        'client_id' => $client_id,
+        'created_by' => $session_name
+    ], $client_id);
 
     flash_alert("Network <strong>$name</strong> created");
 
@@ -31,9 +42,17 @@ if (isset($_POST['edit_network'])) {
     $network_id = intval($_POST['network_id']);
     require_once 'network_model.php';
 
-    mysqli_query($mysqli,"UPDATE networks SET network_name = '$name', network_description = '$description', network_vlan = $vlan, network = '$network', network_subnet = '$subnet', network_gateway = '$gateway', network_primary_dns = '$primary_dns', network_secondary_dns = '$secondary_dns', network_dhcp_range = '$dhcp_range', network_notes = '$notes', network_location_id = $location_id WHERE network_id = $network_id");
+    mysqli_query($mysqli, "UPDATE networks SET network_name = '$name', network_description = '$description', network_vlan = $vlan, network = '$network', network_subnet = '$subnet', network_gateway = '$gateway', network_primary_dns = '$primary_dns', network_secondary_dns = '$secondary_dns', network_dhcp_range = '$dhcp_range', network_notes = '$notes', network_location_id = $location_id WHERE network_id = $network_id");
 
     logAction("Network", "Edit", "$session_name edited network $name", $client_id, $network_id);
+
+    triggerWebhook('network.updated', [
+        'network_id' => $network_id,
+        'network_name' => $name,
+        'network_address' => $network,
+        'client_id' => $client_id,
+        'updated_by' => $session_name
+    ], $client_id);
 
     flash_alert("Network <strong>$name</strong> updated");
 
@@ -48,14 +67,22 @@ if (isset($_GET['archive_network'])) {
     $network_id = intval($_GET['archive_network']);
 
     // Get Network Name and Client ID for logging and alert message
-    $sql = mysqli_query($mysqli,"SELECT network_name, network_client_id FROM networks WHERE network_id = $network_id");
+    $sql = mysqli_query($mysqli, "SELECT network_name, network_client_id FROM networks WHERE network_id = $network_id");
     $row = mysqli_fetch_array($sql);
     $network_name = sanitizeInput($row['network_name']);
     $client_id = intval($row['network_client_id']);
 
-    mysqli_query($mysqli,"UPDATE networks SET network_archived_at = NOW() WHERE network_id = $network_id");
+    mysqli_query($mysqli, "UPDATE networks SET network_archived_at = NOW() WHERE network_id = $network_id");
 
     logAction("Network", "Archive", "$session_name archived network $network_name", $client_id, $network_id);
+
+    // Trigger webhook for network archived
+    triggerWebhook('network.archived', [
+        'network_id' => $network_id,
+        'network_name' => $network_name,
+        'client_id' => $client_id,
+        'archived_by' => $session_name
+    ], $client_id);
 
     flash_alert("Network <strong>$network_name</strong> archived", 'error');
 
@@ -70,12 +97,12 @@ if (isset($_GET['unarchive_network'])) {
     $network_id = intval($_GET['unarchive_network']);
 
     // Get Network Name and Client ID for logging and alert message
-    $sql = mysqli_query($mysqli,"SELECT network_name, network_client_id FROM networks WHERE network_id = $network_id");
+    $sql = mysqli_query($mysqli, "SELECT network_name, network_client_id FROM networks WHERE network_id = $network_id");
     $row = mysqli_fetch_array($sql);
     $network_name = sanitizeInput($row['network_name']);
     $client_id = intval($row['network_client_id']);
 
-    mysqli_query($mysqli,"UPDATE networks SET network_archived_at = NULL WHERE network_id = $network_id");
+    mysqli_query($mysqli, "UPDATE networks SET network_archived_at = NULL WHERE network_id = $network_id");
 
     logAction("Network", "Unarchive", "$session_name restored contact $contact_name", $client_id, $network_id);
 
@@ -92,14 +119,22 @@ if (isset($_GET['delete_network'])) {
     $network_id = intval($_GET['delete_network']);
 
     // Get Network Name and Client ID for logging and alert message
-    $sql = mysqli_query($mysqli,"SELECT network_name, network_client_id FROM networks WHERE network_id = $network_id");
+    $sql = mysqli_query($mysqli, "SELECT network_name, network_client_id FROM networks WHERE network_id = $network_id");
     $row = mysqli_fetch_array($sql);
     $network_name = sanitizeInput($row['network_name']);
     $client_id = intval($row['network_client_id']);
 
-    mysqli_query($mysqli,"DELETE FROM networks WHERE network_id = $network_id");
+    mysqli_query($mysqli, "DELETE FROM networks WHERE network_id = $network_id");
 
     logAction("Network", "Delete", "$session_name deleted network $network_name", $client_id);
+
+    triggerWebhook('network.deleted', [
+        'network_id' => $network_id,
+        'network_name' => $network_name,
+        'client_id' => $client_id,
+        'deleted_by' => $session_name
+    ], $client_id);
+
 
     flash_alert("Network <strong>$network_name</strong> deleted", 'error');
 
@@ -124,7 +159,7 @@ if (isset($_POST['bulk_delete_networks'])) {
             $network_id = intval($network_id);
 
             // Get Network Name and Client ID for logging and alert message
-            $sql = mysqli_query($mysqli,"SELECT network_name, network_client_id FROM networks WHERE network_id = $network_id");
+            $sql = mysqli_query($mysqli, "SELECT network_name, network_client_id FROM networks WHERE network_id = $network_id");
             $row = mysqli_fetch_array($sql);
             $network_name = sanitizeInput($row['network_name']);
             $client_id = intval($row['network_client_id']);
@@ -132,6 +167,13 @@ if (isset($_POST['bulk_delete_networks'])) {
             mysqli_query($mysqli, "DELETE FROM networks WHERE network_id = $network_id AND network_client_id = $client_id");
 
             logAction("Network", "Delete", "$session_name deleted network $network_name", $client_id);
+
+            triggerWebhook('network.deleted', [
+                'network_id' => $network_id,
+                'network_name' => $network_name,
+                'client_id' => $client_id,
+                'deleted_by' => $session_name
+            ], $client_id);
 
         }
 
@@ -160,14 +202,14 @@ if (isset($_POST['export_networks_csv'])) {
         $file_name_prepend = "$session_company_name-";
     }
 
-    $sql = mysqli_query($mysqli,"SELECT * FROM networks WHERE network_archived_at IS NULL $client_query ORDER BY network_name ASC");
+    $sql = mysqli_query($mysqli, "SELECT * FROM networks WHERE network_archived_at IS NULL $client_query ORDER BY network_name ASC");
 
     $num_rows = mysqli_num_rows($sql);
 
     if ($num_rows > 0) {
         $delimiter = ",";
         $enclosure = '"';
-        $escape    = '\\';   // backslash
+        $escape = '\\';   // backslash
         $filename = sanitize_filename($file_name_prepend . "Networks-" . date('Y-m-d_H-i-s') . ".csv");
 
         //create a file pointer

@@ -15,6 +15,7 @@ if (!file_exists('config.php')) {
 require_once "config.php";
 require_once "functions.php";
 require_once "plugins/totp/totp.php";
+require_once "includes/webhook_functions.php";
 
 // Sessions & cookies
 if (session_status() === PHP_SESSION_NONE) {
@@ -81,22 +82,22 @@ $sql_settings = mysqli_query($mysqli, "
 $row = mysqli_fetch_array($sql_settings);
 
 // Company info
-$company_name          = $row['company_name'];
-$company_logo          = $row['company_logo'];
-$config_start_page     = nullable_htmlentities($row['config_start_page']);
-$config_login_message  = nullable_htmlentities($row['config_login_message']);
+$company_name = $row['company_name'];
+$company_logo = $row['company_logo'];
+$config_start_page = nullable_htmlentities($row['config_start_page']);
+$config_login_message = nullable_htmlentities($row['config_login_message']);
 
 // Mail
-$config_smtp_host       = $row['config_smtp_host'];
-$config_smtp_port       = intval($row['config_smtp_port']);
+$config_smtp_host = $row['config_smtp_host'];
+$config_smtp_port = intval($row['config_smtp_port']);
 $config_smtp_encryption = $row['config_smtp_encryption'];
-$config_smtp_username   = $row['config_smtp_username'];
-$config_smtp_password   = $row['config_smtp_password'];
+$config_smtp_username = $row['config_smtp_username'];
+$config_smtp_password = $row['config_smtp_password'];
 $config_mail_from_email = sanitizeInput($row['config_mail_from_email']);
-$config_mail_from_name  = sanitizeInput($row['config_mail_from_name']);
+$config_mail_from_name = sanitizeInput($row['config_mail_from_name']);
 
 // Client Portal Enabled
-$config_client_portal_enable     = intval($row['config_client_portal_enable']);
+$config_client_portal_enable = intval($row['config_client_portal_enable']);
 $config_login_remember_me_expire = intval($row['config_login_remember_me_expire']);
 
 // Login key (if setup)
@@ -106,18 +107,18 @@ $config_login_key_secret = $row['config_login_key_secret'];
 // Azure / Entra for client
 $azure_client_id = $row['config_azure_client_id'] ?? null;
 
-$response          = null;
-$token_field       = null;
-$show_role_choice  = false;
-$email             = '';
-$password          = '';
+$response = null;
+$token_field = null;
+$show_role_choice = false;
+$email = '';
+$password = '';
 
 // Handle POST login request (normal login or role choice)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['login']) || isset($_POST['role_choice']))) {
 
-    $email        = sanitizeInput($_POST['email'] ?? '');
-    $password     = $_POST['password'] ?? '';
-    $role_choice  = $_POST['role_choice'] ?? null; // 'agent' or 'client'
+    $email = sanitizeInput($_POST['email'] ?? '');
+    $password = $_POST['password'] ?? '';
+    $role_choice = $_POST['role_choice'] ?? null; // 'agent' or 'client'
 
     // Basic validation
     if (empty($email) || empty($password) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
@@ -156,7 +157,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['login']) || isset($_
                   )
         ");
 
-        $agentRow  = null;
+        $agentRow = null;
         $clientRow = null;
 
         while ($r = mysqli_fetch_assoc($sql)) {
@@ -171,7 +172,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['login']) || isset($_
             }
         }
 
-        $selectedRow  = null;
+        $selectedRow = null;
         $selectedType = null; // 1 = agent, 2 = client
 
         if ($agentRow === null && $clientRow === null) {
@@ -179,6 +180,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['login']) || isset($_
             // No matching user/password combo
             header("HTTP/1.1 401 Unauthorized");
             logAction("Login", "Failed", "Failed login attempt using $email");
+
+            triggerWebhook('system.login_failure', [
+                'email' => $email,
+                'ip' => $session_ip,
+                'user_agent' => $session_user_agent,
+                'reason' => 'Incorrect username or password'
+            ]);
 
             $response = "
               <div class='alert alert-danger'>
@@ -190,10 +198,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['login']) || isset($_
 
             // Both agent and client accounts share same email + password
             if ($role_choice === 'agent') {
-                $selectedRow  = $agentRow;
+                $selectedRow = $agentRow;
                 $selectedType = 1;
             } elseif ($role_choice === 'client') {
-                $selectedRow  = $clientRow;
+                $selectedRow = $clientRow;
                 $selectedType = 2;
             } else {
                 // First time we realise this is a dual-role account: ask user to pick
@@ -209,10 +217,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['login']) || isset($_
         } else {
             // Only one valid row (agent OR client)
             if ($agentRow !== null) {
-                $selectedRow  = $agentRow;
+                $selectedRow = $agentRow;
                 $selectedType = 1;
             } else {
-                $selectedRow  = $clientRow;
+                $selectedRow = $clientRow;
                 $selectedType = 2;
             }
         }
@@ -220,8 +228,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['login']) || isset($_
         // If we have a specific user selected, proceed with actual login
         if ($selectedRow !== null && $selectedType !== null) {
 
-            $user_id         = intval($selectedRow['user_id']);
-            $user_email      = sanitizeInput($selectedRow['user_email']);
+            $user_id = intval($selectedRow['user_id']);
+            $user_email = sanitizeInput($selectedRow['user_email']);
             $session_user_id = $user_id; // to pass the user_id to logAction function
 
             // =========================
@@ -236,12 +244,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['login']) || isset($_
                     }
                 }
 
-                $user_name                  = sanitizeInput($selectedRow['user_name']);
-                $token                      = sanitizeInput($selectedRow['user_token']);
-                $force_mfa                  = intval($selectedRow['user_config_force_mfa']);
-                $user_role_id               = intval($selectedRow['user_role_id']);
+                $user_name = sanitizeInput($selectedRow['user_name']);
+                $token = sanitizeInput($selectedRow['user_token']);
+                $force_mfa = intval($selectedRow['user_config_force_mfa']);
+                $user_role_id = intval($selectedRow['user_role_id']);
                 $user_encryption_ciphertext = $selectedRow['user_specific_encryption_ciphertext'];
-                $user_extension_key         = $selectedRow['user_extension_key'];
+                $user_extension_key = $selectedRow['user_extension_key'];
 
                 $current_code = 0;
                 if (isset($_POST['current_code'])) {
@@ -249,7 +257,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['login']) || isset($_
                 }
 
                 $mfa_is_complete = false;
-                $extended_log    = '';
+                $extended_log = '';
 
                 if (empty($token)) {
                     // MFA is not configured
@@ -267,7 +275,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['login']) || isset($_
                     while ($remember_row = mysqli_fetch_assoc($remember_tokens)) {
                         if (hash_equals($remember_row['remember_token_token'], $_COOKIE['rememberme'])) {
                             $mfa_is_complete = true;
-                            $extended_log    = 'with 2FA remember-me cookie';
+                            $extended_log = 'with 2FA remember-me cookie';
                             break;
                         }
                     }
@@ -276,7 +284,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['login']) || isset($_
                 // Validate MFA code
                 if (!empty($current_code) && TokenAuth6238::verify($token, $current_code)) {
                     $mfa_is_complete = true;
-                    $extended_log    = 'with MFA';
+                    $extended_log = 'with MFA';
                 }
 
                 if ($mfa_is_complete) {
@@ -322,21 +330,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['login']) || isset($_
                           AND log_user_agent = '$session_user_agent'
                           AND log_user_id = $user_id
                     "));
-                    $ua_prev_logins     = sanitizeInput($sql_ua_prev_logins['ua_previous_logins']);
+                    $ua_prev_logins = sanitizeInput($sql_ua_prev_logins['ua_previous_logins']);
 
                     // Notify if both the user agent and IP are different
                     if (!empty($config_smtp_host) && $ip_previous_logins == 0 && $ua_prev_logins == 0) {
                         $subject = "$config_app_name new login for $user_name";
-                        $body    = "Hi $user_name, <br><br>A recent successful login to your $config_app_name account was considered a little unusual. If this was you, you can safely ignore this email!<br><br>IP Address: $session_ip<br> User Agent: $session_user_agent <br><br>If you did not perform this login, your credentials may be compromised. <br><br>Thanks, <br>ITFlow";
+                        $body = "Hi $user_name, <br><br>A recent successful login to your $config_app_name account was considered a little unusual. If this was you, you can safely ignore this email!<br><br>IP Address: $session_ip<br> User Agent: $session_user_agent <br><br>If you did not perform this login, your credentials may be compromised. <br><br>Thanks, <br>ITFlow";
 
                         $data = [
                             [
-                                'from'           => $config_mail_from_email,
-                                'from_name'      => $config_mail_from_name,
-                                'recipient'      => $user_email,
+                                'from' => $config_mail_from_email,
+                                'from_name' => $config_mail_from_name,
+                                'recipient' => $user_email,
                                 'recipient_name' => $user_name,
-                                'subject'        => $subject,
-                                'body'           => $body
+                                'subject' => $subject,
+                                'body' => $body
                             ]
                         ];
                         addToMailQueue($data);
@@ -344,10 +352,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['login']) || isset($_
 
                     logAction("Login", "Success", "$user_name successfully logged in $extended_log", 0, $user_id);
 
+                    triggerWebhook('system.login_success', [
+                        'user_id' => $user_id,
+                        'user_name' => $user_name,
+                        'user_email' => $user_email,
+                        'user_type' => 'Agent',
+                        'ip' => $session_ip,
+                        'user_agent' => $session_user_agent
+                    ]);
+
                     // Session info
-                    $_SESSION['user_id']    = $user_id;
+                    $_SESSION['user_id'] = $user_id;
                     $_SESSION['csrf_token'] = randomString(156);
-                    $_SESSION['logged']     = true;
+                    $_SESSION['logged'] = true;
 
                     // Forcing MFA
                     if ($force_mfa == 1 && $token == NULL) {
@@ -390,18 +407,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['login']) || isset($_
                         // Logging
                         logAction("Login", "MFA Failed", "$user_email failed MFA", 0, $user_id);
 
+                        triggerWebhook('system.login_failure', [
+                            'user_id' => $user_id,
+                            'user_name' => $user_name,
+                            'user_email' => $user_email,
+                            'ip' => $session_ip,
+                            'user_agent' => $session_user_agent,
+                            'reason' => 'MFA Failed'
+                        ]);
+
                         // Email the tech to advise their credentials may be compromised
                         if (!empty($config_smtp_host)) {
                             $subject = "Important: $config_app_name failed 2FA login attempt for $user_name";
-                            $body    = "Hi $user_name, <br><br>A recent login to your $config_app_name account was unsuccessful due to an incorrect 2FA code. If you did not attempt this login, your credentials may be compromised. <br><br>Thanks, <br>ITFlow";
-                            $data    = [
+                            $body = "Hi $user_name, <br><br>A recent login to your $config_app_name account was unsuccessful due to an incorrect 2FA code. If you did not attempt this login, your credentials may be compromised. <br><br>Thanks, <br>ITFlow";
+                            $data = [
                                 [
-                                    'from'           => $config_mail_from_email,
-                                    'from_name'      => $config_mail_from_name,
-                                    'recipient'      => $user_email,
+                                    'from' => $config_mail_from_email,
+                                    'from_name' => $config_mail_from_name,
+                                    'recipient' => $user_email,
                                     'recipient_name' => $user_name,
-                                    'subject'        => $subject,
-                                    'body'           => $body
+                                    'subject' => $subject,
+                                    'body' => $body
                                 ]
                             ];
                             addToMailQueue($data);
@@ -415,15 +441,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['login']) || isset($_
                     }
                 }
 
-            // =========================
-            // CLIENT LOGIN FLOW
-            // =========================
+                // =========================
+                // CLIENT LOGIN FLOW
+                // =========================
             } elseif ($selectedType === 2) {
 
                 if ($config_client_portal_enable != 1) {
                     // Client portal disabled
                     header("HTTP/1.1 401 Unauthorized");
                     logAction("Client Login", "Failed", "Client portal disabled; login attempt using $email");
+
+                    triggerWebhook('system.login_failure', [
+                        'email' => $email,
+                        'ip' => $session_ip,
+                        'user_agent' => $session_user_agent,
+                        'reason' => 'Client portal disabled'
+                    ]);
                     $response = "
                       <div class='alert alert-danger'>
                         Incorrect username or password.
@@ -431,20 +464,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['login']) || isset($_
                       </div>";
                 } else {
 
-                    $client_id        = intval($selectedRow['contact_client_id']);
-                    $contact_id       = intval($selectedRow['contact_id']);
+                    $client_id = intval($selectedRow['contact_client_id']);
+                    $contact_id = intval($selectedRow['contact_id']);
                     $user_auth_method = sanitizeInput($selectedRow['user_auth_method']);
 
                     if ($client_id && $contact_id && $user_auth_method === 'local') {
 
                         $_SESSION['client_logged_in'] = true;
-                        $_SESSION['client_id']        = $client_id;
-                        $_SESSION['user_id']          = $user_id;
-                        $_SESSION['user_type']        = 2;
-                        $_SESSION['contact_id']       = $contact_id;
-                        $_SESSION['login_method']     = "local";
+                        $_SESSION['client_id'] = $client_id;
+                        $_SESSION['user_id'] = $user_id;
+                        $_SESSION['user_type'] = 2;
+                        $_SESSION['contact_id'] = $contact_id;
+                        $_SESSION['login_method'] = "local";
 
                         logAction("Client Login", "Success", "Client contact $user_email successfully logged in locally", $client_id, $user_id);
+
+                        triggerWebhook('system.login_success', [
+                            'user_id' => $user_id,
+                            'user_email' => $user_email,
+                            'user_type' => 'Client',
+                            'client_id' => $client_id,
+                            'contact_id' => $contact_id,
+                            'ip' => $session_ip,
+                            'user_agent' => $session_user_agent
+                        ], $client_id);
 
                         header("Location: client/index.php");
                         exit();
@@ -470,6 +513,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['login']) || isset($_
 ?>
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
@@ -482,7 +526,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['login']) || isset($_
     <link rel="stylesheet" href="plugins/fontawesome-free/css/all.min.css">
 
     <!-- Favicon -->
-    <?php if(file_exists('uploads/favicon.ico')) { ?>
+    <?php if (file_exists('uploads/favicon.ico')) { ?>
         <link rel="icon" type="image/x-icon" href="/uploads/favicon.ico">
     <?php } ?>
 
@@ -490,120 +534,132 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['login']) || isset($_
     <link rel="stylesheet" href="plugins/adminlte/css/adminlte.min.css">
 
 </head>
+
 <body class="hold-transition login-page">
 
-<div class="login-box">
-    <div class="login-logo">
-        <?php if (!empty($company_logo)) { ?>
-            <img alt="<?=nullable_htmlentities($company_name)?> logo" height="110" width="380" class="img-fluid" src="<?php echo "uploads/settings/$company_logo"; ?>">
-        <?php } else { ?>
-            <span class="text-primary text-bold"><i class="fas fa-paper-plane mr-2"></i>IT</span>Flow
-        <?php } ?>
-    </div>
-
-    <div class="card">
-        <div class="card-body login-card-body">
-
-            <?php if (!empty($config_login_message)){ ?>
-            <p class="login-box-msg px-0"><?php echo nl2br($config_login_message); ?></p>
+    <div class="login-box">
+        <div class="login-logo">
+            <?php if (!empty($company_logo)) { ?>
+                <img alt="<?= nullable_htmlentities($company_name) ?> logo" height="110" width="380" class="img-fluid"
+                    src="<?php echo "uploads/settings/$company_logo"; ?>">
+            <?php } else { ?>
+                <span class="text-primary text-bold"><i class="fas fa-paper-plane mr-2"></i>IT</span>Flow
             <?php } ?>
+        </div>
 
-            <?php if (isset($response)) { ?>
-            <p><?php echo $response; ?></p>
-            <?php } ?>
+        <div class="card">
+            <div class="card-body login-card-body">
 
-            <form method="post">
+                <?php if (!empty($config_login_message)) { ?>
+                    <p class="login-box-msg px-0"><?php echo nl2br($config_login_message); ?></p>
+                <?php } ?>
 
-                <div class="input-group mb-3" <?php if (isset($token_field) && $token_field) { echo "hidden"; } ?>>
-                    <input type="text" class="form-control"
-                        placeholder="<?php if ($config_login_key_required) { if (!isset($_GET['key']) || $_GET['key'] !== $config_login_key_secret) { echo "Client "; } } echo "Email"; ?>"
-                        name="email"
-                        value="<?php echo htmlspecialchars($email ?? '', ENT_QUOTES); ?>"
-                        required <?php if (!isset($token_field) || !$token_field) { echo "autofocus"; } ?>
-                    >
-                    <div class="input-group-append">
-                        <div class="input-group-text">
-                            <span class="fas fa-envelope"></span>
+                <?php if (isset($response)) { ?>
+                    <p><?php echo $response; ?></p>
+                <?php } ?>
+
+                <form method="post">
+
+                    <div class="input-group mb-3" <?php if (isset($token_field) && $token_field) {
+                        echo "hidden";
+                    } ?>>
+                        <input type="text" class="form-control"
+                            placeholder="<?php if ($config_login_key_required) {
+                                if (!isset($_GET['key']) || $_GET['key'] !== $config_login_key_secret) {
+                                    echo "Client ";
+                                }
+                            }
+                            echo "Email"; ?>"
+                            name="email" value="<?php echo htmlspecialchars($email ?? '', ENT_QUOTES); ?>" required
+                            <?php if (!isset($token_field) || !$token_field) {
+                                echo "autofocus";
+                            } ?>>
+                        <div class="input-group-append">
+                            <div class="input-group-text">
+                                <span class="fas fa-envelope"></span>
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                <div class="input-group mb-3" <?php if (isset($token_field) && $token_field) { echo "hidden"; } ?>>
-                    <input type="password" class="form-control" placeholder="Password" name="password"
-                           value="<?php echo isset($token_field) && $token_field ? htmlspecialchars($password ?? '', ENT_QUOTES) : ''; ?>"
-                           required>
-                    <div class="input-group-append">
-                        <div class="input-group-text">
-                            <span class="fas fa-lock"></span>
+                    <div class="input-group mb-3" <?php if (isset($token_field) && $token_field) {
+                        echo "hidden";
+                    } ?>>
+                        <input type="password" class="form-control" placeholder="Password" name="password"
+                            value="<?php echo isset($token_field) && $token_field ? htmlspecialchars($password ?? '', ENT_QUOTES) : ''; ?>"
+                            required>
+                        <div class="input-group-append">
+                            <div class="input-group-text">
+                                <span class="fas fa-lock"></span>
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                <?php
-                // If agent needs MFA, show 2FA field + remember me
-                if (isset($token_field) && $token_field) {
+                    <?php
+                    // If agent needs MFA, show 2FA field + remember me
+                    if (isset($token_field) && $token_field) {
 
-                    echo $token_field;
-                ?>
-                <div class="form-group mb-3">
-                    <div class="custom-control custom-checkbox">
-                        <input type="checkbox" class="custom-control-input" id="remember_me" name="remember_me">
-                        <label class="custom-control-label" for="remember_me">Remember Me</label>
-                    </div>
-                </div>
+                        echo $token_field;
+                        ?>
+                        <div class="form-group mb-3">
+                            <div class="custom-control custom-checkbox">
+                                <input type="checkbox" class="custom-control-input" id="remember_me" name="remember_me">
+                                <label class="custom-control-label" for="remember_me">Remember Me</label>
+                            </div>
+                        </div>
+                    <?php } ?>
+
+                    <?php if ($show_role_choice): ?>
+                        <!-- When both agent & client accounts exist with same email/password -->
+                        <div class="mb-2 text-center">
+                            <button type="submit" class="btn btn-primary btn-block mb-2" name="role_choice" value="agent">
+                                Log in as Agent
+                            </button>
+                            <button type="submit" class="btn btn-success btn-block" name="role_choice" value="client">
+                                Log in as Client
+                            </button>
+                        </div>
+                    <?php else: ?>
+                        <button type="submit" class="btn btn-primary btn-block mb-3" name="login">Sign In</button>
+                    <?php endif; ?>
+
+                </form>
+
+                <?php if ($config_client_portal_enable == 1) { ?>
+                    <hr>
+                    <?php if (!empty($config_smtp_host)) { ?>
+                        <a href="client/login_reset.php">Forgot password?</a>
+                    <?php } ?>
+                    <?php if (!empty($azure_client_id)) { ?>
+                        <div class="col text-center mt-2">
+                            <a href="client/login_microsoft.php">
+                                <button type="button" class="btn btn-secondary">Login with Microsoft Entra</button>
+                            </a>
+                        </div>
+                    <?php } ?>
                 <?php } ?>
 
-                <?php if ($show_role_choice): ?>
-                    <!-- When both agent & client accounts exist with same email/password -->
-                    <div class="mb-2 text-center">
-                        <button type="submit" class="btn btn-primary btn-block mb-2" name="role_choice" value="agent">
-                            Log in as Agent
-                        </button>
-                        <button type="submit" class="btn btn-success btn-block" name="role_choice" value="client">
-                            Log in as Client
-                        </button>
-                    </div>
-                <?php else: ?>
-                    <button type="submit" class="btn btn-primary btn-block mb-3" name="login">Sign In</button>
-                <?php endif; ?>
-
-            </form>
-
-            <?php if($config_client_portal_enable == 1){ ?>
-                <hr>
-                <?php if (!empty($config_smtp_host)) { ?>
-                    <a href="client/login_reset.php">Forgot password?</a>
-                <?php } ?>
-                <?php if (!empty($azure_client_id)) { ?>
-                    <div class="col text-center mt-2">
-                        <a href="client/login_microsoft.php">
-                            <button type="button" class="btn btn-secondary">Login with Microsoft Entra</button>
-                        </a>
-                    </div>
-                <?php } ?>
-            <?php } ?>
-
+            </div>
         </div>
     </div>
-</div>
 
-<?php
-if (!$config_whitelabel_enabled) {
-    echo '<small class="text-muted">Powered by ITFlow</small>';
-}
-?>
+    <?php
+    if (!$config_whitelabel_enabled) {
+        echo '<small class="text-muted">Powered by ITFlow</small>';
+    }
+    ?>
 
-<!-- jQuery -->
-<script src="plugins/jquery/jquery.min.js"></script>
+    <!-- jQuery -->
+    <script src="plugins/jquery/jquery.min.js"></script>
 
-<!-- Bootstrap 4 -->
-<script src="plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
+    <!-- Bootstrap 4 -->
+    <script src="plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
 
-<!-- AdminLTE App -->
-<script src="plugins/adminlte/js/adminlte.min.js"></script>
+    <!-- AdminLTE App -->
+    <script src="plugins/adminlte/js/adminlte.min.js"></script>
 
-<!-- Prevents resubmit on refresh or back -->
-<script src="js/login_prevent_resubmit.js"></script>
+    <!-- Prevents resubmit on refresh or back -->
+    <script src="js/login_prevent_resubmit.js"></script>
 
 </body>
+
 </html>

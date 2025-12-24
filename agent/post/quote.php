@@ -6,6 +6,8 @@
 
 defined('FROM_POST_HANDLER') || die("Direct file access is not allowed");
 
+require_once dirname(__FILE__) . '/../../includes/webhook_functions.php';
+
 if (isset($_POST['add_quote'])) {
 
     enforceUserPermission('module_sales', 2);
@@ -28,11 +30,11 @@ if (isset($_POST['add_quote'])) {
     //Generate a unique URL key for clients to access
     $quote_url_key = randomString(156);
 
-    mysqli_query($mysqli,"INSERT INTO quotes SET quote_prefix = '$config_quote_prefix', quote_number = $quote_number, quote_scope = '$scope', quote_date = '$date', quote_expire = '$expire', quote_currency_code = '$session_company_currency', quote_category_id = $category, quote_status = 'Draft', quote_url_key = '$quote_url_key', quote_client_id = $client_id");
+    mysqli_query($mysqli, "INSERT INTO quotes SET quote_prefix = '$config_quote_prefix', quote_number = $quote_number, quote_scope = '$scope', quote_date = '$date', quote_expire = '$expire', quote_currency_code = '$session_company_currency', quote_category_id = $category, quote_status = 'Draft', quote_url_key = '$quote_url_key', quote_client_id = $client_id");
 
     $quote_id = mysqli_insert_id($mysqli);
 
-    mysqli_query($mysqli,"INSERT INTO history SET history_status = 'Draft', history_description = 'Quote created!', history_quote_id = $quote_id");
+    mysqli_query($mysqli, "INSERT INTO history SET history_status = 'Draft', history_description = 'Quote created!', history_quote_id = $quote_id");
 
     logAction("Quote", "Create", "$session_name created quote $config_quote_prefix$quote_number", $client_id, $quote_id);
 
@@ -66,7 +68,7 @@ if (isset($_POST['add_quote_copy'])) {
 
     $quote_number = mysqli_insert_id($mysqli);
 
-    $sql = mysqli_query($mysqli,"SELECT * FROM quotes WHERE quote_id = $quote_id");
+    $sql = mysqli_query($mysqli, "SELECT * FROM quotes WHERE quote_id = $quote_id");
     $row = mysqli_fetch_array($sql);
     $original_quote_prefix = sanitizeInput($row['quote_prefix']);
     $original_quote_number = sanitizeInput($row['quote_number']);
@@ -80,14 +82,14 @@ if (isset($_POST['add_quote_copy'])) {
     //Generate a unique URL key for clients to access
     $quote_url_key = randomString(156);
 
-    mysqli_query($mysqli,"INSERT INTO quotes SET quote_prefix = '$config_quote_prefix', quote_number = $quote_number, quote_scope = '$quote_scope', quote_date = '$date', quote_expire = '$expire', quote_category_id = $category_id, quote_status = 'Draft', quote_discount_amount = $quote_discount_amount, quote_amount = $quote_amount, quote_currency_code = '$quote_currency_code', quote_note = '$quote_note', quote_url_key = '$quote_url_key', quote_client_id = $client_id");
+    mysqli_query($mysqli, "INSERT INTO quotes SET quote_prefix = '$config_quote_prefix', quote_number = $quote_number, quote_scope = '$quote_scope', quote_date = '$date', quote_expire = '$expire', quote_category_id = $category_id, quote_status = 'Draft', quote_discount_amount = $quote_discount_amount, quote_amount = $quote_amount, quote_currency_code = '$quote_currency_code', quote_note = '$quote_note', quote_url_key = '$quote_url_key', quote_client_id = $client_id");
 
     $new_quote_id = mysqli_insert_id($mysqli);
 
-    mysqli_query($mysqli,"INSERT INTO history SET history_status = 'Draft', history_description = 'Quote copied!', history_quote_id = $new_quote_id");
+    mysqli_query($mysqli, "INSERT INTO history SET history_status = 'Draft', history_description = 'Quote copied!', history_quote_id = $new_quote_id");
 
-    $sql_items = mysqli_query($mysqli,"SELECT * FROM invoice_items WHERE item_quote_id = $quote_id");
-    while($row = mysqli_fetch_array($sql_items)) {
+    $sql_items = mysqli_query($mysqli, "SELECT * FROM invoice_items WHERE item_quote_id = $quote_id");
+    while ($row = mysqli_fetch_array($sql_items)) {
         $item_id = intval($row['item_id']);
         $item_name = sanitizeInput($row['item_name']);
         $item_description = sanitizeInput($row['item_description']);
@@ -99,7 +101,7 @@ if (isset($_POST['add_quote_copy'])) {
         $item_order = intval($row['item_order']);
         $tax_id = intval($row['item_tax_id']);
 
-        mysqli_query($mysqli,"INSERT INTO invoice_items SET item_name = '$item_name', item_description = '$item_description', item_quantity = $item_quantity, item_price = $item_price, item_subtotal = $item_subtotal, item_tax = $item_tax, item_total = $item_total, item_order = $item_order, item_tax_id = $tax_id, item_quote_id = $new_quote_id");
+        mysqli_query($mysqli, "INSERT INTO invoice_items SET item_name = '$item_name', item_description = '$item_description', item_quantity = $item_quantity, item_price = $item_price, item_subtotal = $item_subtotal, item_tax = $item_tax, item_total = $item_total, item_order = $item_order, item_tax_id = $tax_id, item_quote_id = $new_quote_id");
     }
 
     logAction("Quote", "Create", "$session_name created quote $config_quote_prefix$quote_number from quote $original_quote_prefix$original_quote_number", $client_id, $new_quote_id);
@@ -119,7 +121,7 @@ if (isset($_POST['add_quote_to_invoice'])) {
     $quote_id = intval($_POST['quote_id']);
     $date = sanitizeInput($_POST['date']);
 
-    $sql = mysqli_query($mysqli,"SELECT * FROM clients, quotes WHERE client_id = quote_client_id AND quote_id = $quote_id");
+    $sql = mysqli_query($mysqli, "SELECT * FROM clients, quotes WHERE client_id = quote_client_id AND quote_id = $quote_id");
     $row = mysqli_fetch_array($sql);
     $client_net_terms = intval($row['client_net_terms']);
     $quote_prefix = sanitizeInput($row['quote_prefix']);
@@ -149,14 +151,14 @@ if (isset($_POST['add_quote_to_invoice'])) {
     //Generate a unique URL key for clients to access
     $url_key = randomString(156);
 
-    mysqli_query($mysqli,"INSERT INTO invoices SET invoice_prefix = '$config_invoice_prefix', invoice_number = $invoice_number, invoice_scope = '$quote_scope', invoice_date = '$date', invoice_due = DATE_ADD(CURDATE(), INTERVAL $client_net_terms day), invoice_category_id = $category_id, invoice_status = 'Draft', invoice_discount_amount = $quote_discount_amount, invoice_amount = $quote_amount, invoice_currency_code = '$quote_currency_code', invoice_note = '$quote_note', invoice_url_key = '$url_key', invoice_client_id = $client_id");
+    mysqli_query($mysqli, "INSERT INTO invoices SET invoice_prefix = '$config_invoice_prefix', invoice_number = $invoice_number, invoice_scope = '$quote_scope', invoice_date = '$date', invoice_due = DATE_ADD(CURDATE(), INTERVAL $client_net_terms day), invoice_category_id = $category_id, invoice_status = 'Draft', invoice_discount_amount = $quote_discount_amount, invoice_amount = $quote_amount, invoice_currency_code = '$quote_currency_code', invoice_note = '$quote_note', invoice_url_key = '$url_key', invoice_client_id = $client_id");
 
     $new_invoice_id = mysqli_insert_id($mysqli);
 
-    mysqli_query($mysqli,"INSERT INTO history SET history_status = 'Draft', history_description = 'Invoice created from quote $quote_prefix$quote_number', history_invoice_id = $new_invoice_id");
+    mysqli_query($mysqli, "INSERT INTO history SET history_status = 'Draft', history_description = 'Invoice created from quote $quote_prefix$quote_number', history_invoice_id = $new_invoice_id");
 
-    $sql_items = mysqli_query($mysqli,"SELECT * FROM invoice_items WHERE item_quote_id = $quote_id");
-    while($row = mysqli_fetch_array($sql_items)) {
+    $sql_items = mysqli_query($mysqli, "SELECT * FROM invoice_items WHERE item_quote_id = $quote_id");
+    while ($row = mysqli_fetch_array($sql_items)) {
         $item_id = intval($row['item_id']);
         $item_name = sanitizeInput($row['item_name']);
         $item_description = sanitizeInput($row['item_description']);
@@ -168,12 +170,12 @@ if (isset($_POST['add_quote_to_invoice'])) {
         $item_order = intval($row['item_order']);
         $tax_id = intval($row['item_tax_id']);
 
-        mysqli_query($mysqli,"INSERT INTO invoice_items SET item_name = '$item_name', item_description = '$item_description', item_quantity = $item_quantity, item_price = $item_price, item_subtotal = $item_subtotal, item_tax = $item_tax, item_total = $item_total, item_order = $item_order, item_tax_id = $tax_id, item_invoice_id = $new_invoice_id");
+        mysqli_query($mysqli, "INSERT INTO invoice_items SET item_name = '$item_name', item_description = '$item_description', item_quantity = $item_quantity, item_price = $item_price, item_subtotal = $item_subtotal, item_tax = $item_tax, item_total = $item_total, item_order = $item_order, item_tax_id = $tax_id, item_invoice_id = $new_invoice_id");
     }
 
-    mysqli_query($mysqli,"UPDATE quotes SET quote_status = 'Invoiced' WHERE quote_id = $quote_id");
+    mysqli_query($mysqli, "UPDATE quotes SET quote_status = 'Invoiced' WHERE quote_id = $quote_id");
 
-    mysqli_query($mysqli,"INSERT INTO history SET history_status = 'Invoiced', history_description = 'Quote invoiced as $config_invoice_prefix$invoice_number', history_quote_id = $quote_id");
+    mysqli_query($mysqli, "INSERT INTO history SET history_status = 'Invoiced', history_description = 'Quote invoiced as $config_invoice_prefix$invoice_number', history_quote_id = $quote_id");
 
     logAction("Invoice", "Create", "$session_name created invoice $config_invoice_prefix$invoice_number from quote $config_quote_prefix$quote_number", $client_id, $new_invoice_id);
 
@@ -200,20 +202,20 @@ if (isset($_POST['add_quote_item'])) {
     $subtotal = $price * $qty;
 
     if ($tax_id > 0) {
-        $sql = mysqli_query($mysqli,"SELECT * FROM taxes WHERE tax_id = $tax_id");
+        $sql = mysqli_query($mysqli, "SELECT * FROM taxes WHERE tax_id = $tax_id");
         $row = mysqli_fetch_array($sql);
         $tax_percent = floatval($row['tax_percent']);
         $tax_amount = $subtotal * $tax_percent / 100;
-    }else{
+    } else {
         $tax_amount = 0;
     }
 
     $total = $subtotal + $tax_amount;
 
-    mysqli_query($mysqli,"INSERT INTO invoice_items SET item_name = '$name', item_description = '$description', item_quantity = $qty, item_price = $price, item_subtotal = $subtotal, item_tax = $tax_amount, item_total = $total, item_tax_id = $tax_id, item_order = $item_order, item_quote_id = $quote_id");
+    mysqli_query($mysqli, "INSERT INTO invoice_items SET item_name = '$name', item_description = '$description', item_quantity = $qty, item_price = $price, item_subtotal = $subtotal, item_tax = $tax_amount, item_total = $total, item_tax_id = $tax_id, item_order = $item_order, item_quote_id = $quote_id");
 
     // Get Quote Details
-    $sql = mysqli_query($mysqli,"SELECT * FROM quotes WHERE quote_id = $quote_id");
+    $sql = mysqli_query($mysqli, "SELECT * FROM quotes WHERE quote_id = $quote_id");
     $row = mysqli_fetch_array($sql);
     $quote_prefix = sanitizeInput($row['quote_prefix']);
     $quote_number = sanitizeInput($row['quote_number']);
@@ -221,15 +223,15 @@ if (isset($_POST['add_quote_item'])) {
     $client_id = intval($row['quote_client_id']);
 
     //add up the total of all items
-    $sql = mysqli_query($mysqli,"SELECT * FROM invoice_items WHERE item_quote_id = $quote_id");
+    $sql = mysqli_query($mysqli, "SELECT * FROM invoice_items WHERE item_quote_id = $quote_id");
     $quote_amount = 0;
-    while($row = mysqli_fetch_array($sql)) {
+    while ($row = mysqli_fetch_array($sql)) {
         $item_total = floatval($row['item_total']);
         $quote_amount = $quote_amount + $item_total;
     }
     $new_quote_amount = $quote_amount - $quote_discount_amount;
 
-    mysqli_query($mysqli,"UPDATE quotes SET quote_amount = $new_quote_amount WHERE quote_id = $quote_id");
+    mysqli_query($mysqli, "UPDATE quotes SET quote_amount = $new_quote_amount WHERE quote_id = $quote_id");
 
     logAction("Quote", "Edit", "$session_name added item $name to quote $quote_prefix$quote_number", $client_id, $quote_id);
 
@@ -247,13 +249,13 @@ if (isset($_POST['quote_note'])) {
     $note = sanitizeInput($_POST['note']);
 
     // Get Quote Details
-    $sql = mysqli_query($mysqli,"SELECT * FROM quotes WHERE quote_id = $quote_id");
+    $sql = mysqli_query($mysqli, "SELECT * FROM quotes WHERE quote_id = $quote_id");
     $row = mysqli_fetch_array($sql);
     $quote_prefix = sanitizeInput($row['quote_prefix']);
     $quote_number = sanitizeInput($row['quote_number']);
     $client_id = intval($row['quote_client_id']);
 
-    mysqli_query($mysqli,"UPDATE quotes SET quote_note = '$note' WHERE quote_id = $quote_id");
+    mysqli_query($mysqli, "UPDATE quotes SET quote_note = '$note' WHERE quote_id = $quote_id");
 
     logAction("Quote", "Edit", "$session_name added notes to quote $quote_prefix$quote_number", $client_id, $quote_id);
 
@@ -272,24 +274,34 @@ if (isset($_POST['edit_quote'])) {
     $quote_id = intval($_POST['quote_id']);
 
     // Get Quote Details for logging
-    $sql = mysqli_query($mysqli,"SELECT * FROM quotes WHERE quote_id = $quote_id");
+    $sql = mysqli_query($mysqli, "SELECT * FROM quotes WHERE quote_id = $quote_id");
     $row = mysqli_fetch_array($sql);
     $quote_prefix = sanitizeInput($row['quote_prefix']);
     $quote_number = sanitizeInput($row['quote_number']);
     $client_id = intval($row['quote_client_id']);
 
     //Calculate the new quote amount
-    $sql = mysqli_query($mysqli,"SELECT * FROM invoice_items WHERE item_quote_id = $quote_id");
+    $sql = mysqli_query($mysqli, "SELECT * FROM invoice_items WHERE item_quote_id = $quote_id");
     $quote_amount = 0;
-    while($row = mysqli_fetch_array($sql)) {
+    while ($row = mysqli_fetch_array($sql)) {
         $item_total = floatval($row['item_total']);
         $quote_amount = $quote_amount + $item_total;
     }
     $quote_amount = $quote_amount - $quote_discount;
 
-    mysqli_query($mysqli,"UPDATE quotes SET quote_scope = '$scope', quote_date = '$date', quote_expire = '$expire', quote_discount_amount = '$quote_discount', quote_amount = '$quote_amount', quote_category_id = $category WHERE quote_id = $quote_id");
+    mysqli_query($mysqli, "UPDATE quotes SET quote_scope = '$scope', quote_date = '$date', quote_expire = '$expire', quote_discount_amount = '$quote_discount', quote_amount = '$quote_amount', quote_category_id = $category WHERE quote_id = $quote_id");
 
     logAction("Quote", "Edit", "$session_name edited quote $quote_prefix$quote_number", $client_id, $quote_id);
+
+    // Trigger webhook for quote updated
+    triggerWebhook('quote.updated', [
+        'quote_id' => $quote_id,
+        'quote_number' => $quote_prefix . $quote_number,
+        'quote_scope' => $scope,
+        'quote_amount' => $quote_amount,
+        'client_id' => $client_id,
+        'updated_by' => $session_name
+    ], $client_id);
 
     flash_alert("Quote edited");
 
@@ -304,26 +316,28 @@ if (isset($_GET['delete_quote'])) {
     $quote_id = intval($_GET['delete_quote']);
 
     // Get Quote Details for logging
-    $sql = mysqli_query($mysqli,"SELECT * FROM quotes WHERE quote_id = $quote_id");
+    $sql = mysqli_query($mysqli, "SELECT * FROM quotes WHERE quote_id = $quote_id");
     $row = mysqli_fetch_array($sql);
     $quote_prefix = sanitizeInput($row['quote_prefix']);
     $quote_number = sanitizeInput($row['quote_number']);
     $client_id = intval($row['quote_client_id']);
 
-    mysqli_query($mysqli,"DELETE FROM quotes WHERE quote_id = $quote_id");
+    mysqli_query($mysqli, "DELETE FROM quotes WHERE quote_id = $quote_id");
 
     //Delete Items Associated with the Quote
-    $sql = mysqli_query($mysqli,"SELECT * FROM invoice_items WHERE item_quote_id = $quote_id");
-    while($row = mysqli_fetch_array($sql)) {;
+    $sql = mysqli_query($mysqli, "SELECT * FROM invoice_items WHERE item_quote_id = $quote_id");
+    while ($row = mysqli_fetch_array($sql)) {
+        ;
         $item_id = intval($row['item_id']);
-        mysqli_query($mysqli,"DELETE FROM invoice_items WHERE item_id = $item_id");
+        mysqli_query($mysqli, "DELETE FROM invoice_items WHERE item_id = $item_id");
     }
 
     //Delete History Associated with the Quote
-    $sql = mysqli_query($mysqli,"SELECT * FROM history WHERE history_quote_id = $quote_id");
-    while($row = mysqli_fetch_array($sql)) {;
+    $sql = mysqli_query($mysqli, "SELECT * FROM history WHERE history_quote_id = $quote_id");
+    while ($row = mysqli_fetch_array($sql)) {
+        ;
         $history_id = intval($row['history_id']);
-        mysqli_query($mysqli,"DELETE FROM history WHERE history_id = $history_id");
+        mysqli_query($mysqli, "DELETE FROM history WHERE history_id = $history_id");
     }
 
     logAction("Quote", "Delete", "$session_name deleted quote $quote_prefix$quote_number", $client_id);
@@ -345,7 +359,7 @@ if (isset($_GET['delete_quote_item'])) {
 
     $item_id = intval($_GET['delete_quote_item']);
 
-    $sql = mysqli_query($mysqli,"SELECT * FROM invoice_items WHERE item_id = $item_id");
+    $sql = mysqli_query($mysqli, "SELECT * FROM invoice_items WHERE item_id = $item_id");
     $row = mysqli_fetch_array($sql);
     $item_name = sanitizeInput($row['item_name']);
     $quote_id = intval($row['item_quote_id']);
@@ -353,7 +367,7 @@ if (isset($_GET['delete_quote_item'])) {
     $item_tax = floatval($row['item_tax']);
     $item_total = floatval($row['item_total']);
 
-    $sql = mysqli_query($mysqli,"SELECT * FROM quotes WHERE quote_id = $quote_id");
+    $sql = mysqli_query($mysqli, "SELECT * FROM quotes WHERE quote_id = $quote_id");
     $row = mysqli_fetch_array($sql);
     $quote_prefix = sanitizeInput($row['quote_prefix']);
     $quote_number = sanitizeInput($row['quote_number']);
@@ -361,9 +375,9 @@ if (isset($_GET['delete_quote_item'])) {
 
     $new_quote_amount = floatval($row['quote_amount']) - $item_total;
 
-    mysqli_query($mysqli,"UPDATE quotes SET quote_amount = $new_quote_amount WHERE quote_id = $quote_id");
+    mysqli_query($mysqli, "UPDATE quotes SET quote_amount = $new_quote_amount WHERE quote_id = $quote_id");
 
-    mysqli_query($mysqli,"DELETE FROM invoice_items WHERE item_id = $item_id");
+    mysqli_query($mysqli, "DELETE FROM invoice_items WHERE item_id = $item_id");
 
     logAction("Quote", "Edit", "$session_name removed item $item_name from $quote_prefix$quote_number", $client_id, $quote_id);
 
@@ -379,17 +393,19 @@ if (isset($_GET['mark_quote_sent'])) {
 
     $quote_id = intval($_GET['mark_quote_sent']);
 
-    $sql = mysqli_query($mysqli,"SELECT * FROM quotes WHERE quote_id = $quote_id");
+    $sql = mysqli_query($mysqli, "SELECT * FROM quotes WHERE quote_id = $quote_id");
     $row = mysqli_fetch_array($sql);
     $quote_prefix = sanitizeInput($row['quote_prefix']);
     $quote_number = sanitizeInput($row['quote_number']);
     $client_id = intval($row['quote_client_id']);
 
-    mysqli_query($mysqli,"UPDATE quotes SET quote_status = 'Sent' WHERE quote_id = $quote_id");
+    mysqli_query($mysqli, "UPDATE quotes SET quote_status = 'Sent' WHERE quote_id = $quote_id");
 
-    mysqli_query($mysqli,"INSERT INTO history SET history_status = 'Sent', history_description = 'Quote marked sent', history_quote_id = $quote_id");
+    mysqli_query($mysqli, "INSERT INTO history SET history_status = 'Sent', history_description = 'Quote marked sent', history_quote_id = $quote_id");
 
     logAction("Quote", "Sent", "$session_name marked quote $quote_prefix$quote_number as sent", $client_id, $quote_id);
+
+    triggerWebhook('quote.sent', ['quote_id' => $quote_id, 'client_id' => $client_id, 'quote_number' => $quote_prefix . $quote_number], $client_id);
 
     flash_alert("Quote marked sent");
 
@@ -403,17 +419,19 @@ if (isset($_GET['accept_quote'])) {
 
     $quote_id = intval($_GET['accept_quote']);
 
-    $sql = mysqli_query($mysqli,"SELECT * FROM quotes WHERE quote_id = $quote_id");
+    $sql = mysqli_query($mysqli, "SELECT * FROM quotes WHERE quote_id = $quote_id");
     $row = mysqli_fetch_array($sql);
     $quote_prefix = sanitizeInput($row['quote_prefix']);
     $quote_number = sanitizeInput($row['quote_number']);
     $client_id = intval($row['quote_client_id']);
 
-    mysqli_query($mysqli,"UPDATE quotes SET quote_status = 'Accepted' WHERE quote_id = $quote_id");
+    mysqli_query($mysqli, "UPDATE quotes SET quote_status = 'Accepted' WHERE quote_id = $quote_id");
 
-    mysqli_query($mysqli,"INSERT INTO history SET history_status = 'Accepted', history_description = 'Quote accepted by $session_name', history_quote_id = $quote_id");
+    mysqli_query($mysqli, "INSERT INTO history SET history_status = 'Accepted', history_description = 'Quote accepted by $session_name', history_quote_id = $quote_id");
 
     logAction("Quote", "Edit", "$session_name marked quote $quote_prefix$quote_number as accepted", $client_id, $quote_id);
+
+    triggerWebhook('quote.accepted', ['quote_id' => $quote_id, 'client_id' => $client_id, 'quote_number' => $quote_prefix . $quote_number], $client_id);
 
     customAction('quote_accept', $quote_id);
 
@@ -429,19 +447,21 @@ if (isset($_GET['decline_quote'])) {
 
     $quote_id = intval($_GET['decline_quote']);
 
-    $sql = mysqli_query($mysqli,"SELECT * FROM quotes WHERE quote_id = $quote_id");
+    $sql = mysqli_query($mysqli, "SELECT * FROM quotes WHERE quote_id = $quote_id");
     $row = mysqli_fetch_array($sql);
     $quote_prefix = sanitizeInput($row['quote_prefix']);
     $quote_number = sanitizeInput($row['quote_number']);
     $client_id = intval($row['quote_client_id']);
 
-    mysqli_query($mysqli,"UPDATE quotes SET quote_status = 'Declined' WHERE quote_id = $quote_id");
+    mysqli_query($mysqli, "UPDATE quotes SET quote_status = 'Declined' WHERE quote_id = $quote_id");
 
-    mysqli_query($mysqli,"INSERT INTO history SET history_status = 'Cancelled', history_description = 'Quote declined by $session_name', history_quote_id = $quote_id");
+    mysqli_query($mysqli, "INSERT INTO history SET history_status = 'Cancelled', history_description = 'Quote declined by $session_name', history_quote_id = $quote_id");
 
     customAction('quote_decline', $quote_id);
 
     logAction("Quote", "Edit", "$session_name marked quote $quote_prefix$quote_number as declined", $client_id, $quote_id);
+
+    triggerWebhook('quote.declined', ['quote_id' => $quote_id, 'client_id' => $client_id, 'quote_number' => $quote_prefix . $quote_number], $client_id);
 
     flash_alert("Quote declined", 'error');
 
@@ -455,7 +475,9 @@ if (isset($_GET['email_quote'])) {
 
     $quote_id = intval($_GET['email_quote']);
 
-    $sql = mysqli_query($mysqli,"SELECT * FROM quotes
+    $sql = mysqli_query(
+        $mysqli,
+        "SELECT * FROM quotes
     LEFT JOIN clients ON quote_client_id = client_id
     LEFT JOIN contacts ON clients.client_id = contacts.contact_client_id AND contact_primary = 1
     WHERE quote_id = $quote_id"
@@ -476,7 +498,7 @@ if (isset($_GET['email_quote'])) {
     $contact_name = sanitizeInput($row['contact_name']);
     $contact_email = sanitizeInput($row['contact_email']);
 
-    $sql = mysqli_query($mysqli,"SELECT * FROM companies WHERE company_id = 1");
+    $sql = mysqli_query($mysqli, "SELECT * FROM companies WHERE company_id = 1");
     $row = mysqli_fetch_array($sql);
 
     $company_name = sanitizeInput($row['company_name']);
@@ -512,15 +534,17 @@ if (isset($_GET['email_quote'])) {
     addToMailQueue($data);
 
     // Update History
-    mysqli_query($mysqli,"INSERT INTO history SET history_status = 'Sent', history_description = 'Emailed Quote', history_quote_id = $quote_id");
+    mysqli_query($mysqli, "INSERT INTO history SET history_status = 'Sent', history_description = 'Emailed Quote', history_quote_id = $quote_id");
 
     logAction("Quote", "Email", "$session_name emailed quote $quote_prefix$quote_number to $contact_email", $client_id, $quote_id);
+
+    triggerWebhook('quote.sent', ['quote_id' => $quote_id, 'client_id' => $client_id, 'quote_number' => $quote_prefix . $quote_number], $client_id);
 
     flash_alert("Quote sent!");
 
     //Don't change the status to sent if the status is anything but draft
     if ($quote_status == 'Draft') {
-        mysqli_query($mysqli,"UPDATE quotes SET quote_status = 'Sent' WHERE quote_id = $quote_id");
+        mysqli_query($mysqli, "UPDATE quotes SET quote_status = 'Sent' WHERE quote_id = $quote_id");
     }
 
     redirect();
@@ -533,15 +557,15 @@ if (isset($_GET['mark_quote_invoiced'])) {
 
     $quote_id = intval($_GET['mark_quote_invoiced']);
 
-    $sql = mysqli_query($mysqli,"SELECT * FROM quotes WHERE quote_id = $quote_id");
+    $sql = mysqli_query($mysqli, "SELECT * FROM quotes WHERE quote_id = $quote_id");
     $row = mysqli_fetch_array($sql);
     $quote_prefix = sanitizeInput($row['quote_prefix']);
     $quote_number = sanitizeInput($row['quote_number']);
     $client_id = intval($row['quote_client_id']);
 
-    mysqli_query($mysqli,"UPDATE quotes SET quote_status = 'Invoiced' WHERE quote_id = $quote_id");
+    mysqli_query($mysqli, "UPDATE quotes SET quote_status = 'Invoiced' WHERE quote_id = $quote_id");
 
-    mysqli_query($mysqli,"INSERT INTO history SET history_status = 'Invoiced', history_description = 'Quote marked as invoiced', history_quote_id = $quote_id");
+    mysqli_query($mysqli, "INSERT INTO history SET history_status = 'Invoiced', history_description = 'Quote marked as invoiced', history_quote_id = $quote_id");
 
     logAction("Quote", "Sent", "$session_name marked quote $quote_prefix$quote_number as invoiced", $client_id, $quote_id);
 
@@ -551,7 +575,7 @@ if (isset($_GET['mark_quote_invoiced'])) {
 
 }
 
-if(isset($_POST['export_quotes_csv'])){
+if (isset($_POST['export_quotes_csv'])) {
 
     enforceUserPermission('module_sales');
 
@@ -567,14 +591,14 @@ if(isset($_POST['export_quotes_csv'])){
         $file_name_prepend = "$session_company_name";
     }
 
-    $sql = mysqli_query($mysqli,"SELECT * FROM quotes $client_query ORDER BY quote_number ASC");
+    $sql = mysqli_query($mysqli, "SELECT * FROM quotes $client_query ORDER BY quote_number ASC");
 
     $num_rows = mysqli_num_rows($sql);
 
-    if($num_rows > 0){
+    if ($num_rows > 0) {
         $delimiter = ",";
         $enclosure = '"';
-        $escape    = '\\';   // backslash
+        $escape = '\\';   // backslash
         $filename = sanitize_filename($file_name_prepend . "Quotes-" . date('Y-m-d_H-i-s') . ".csv");
 
         //create a file pointer
@@ -585,7 +609,7 @@ if(isset($_POST['export_quotes_csv'])){
         fputcsv($f, $fields, $delimiter, $enclosure, $escape);
 
         //output each row of the data, format line as csv and write to file pointer
-        while($row = $sql->fetch_assoc()){
+        while ($row = $sql->fetch_assoc()) {
             $lineData = array($row['quote_prefix'] . $row['quote_number'], $row['quote_scope'], $row['quote_amount'], $row['quote_date'], $row['quote_status']);
             fputcsv($f, $lineData, $delimiter, $enclosure, $escape);
         }

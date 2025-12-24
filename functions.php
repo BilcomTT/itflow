@@ -4,7 +4,8 @@
 DEFINE("WORDING_ROLECHECK_FAILED", "You are not permitted to do that!");
 
 // Function to generate both crypto & URL safe random strings
-function randomString($length = 16) {
+function randomString($length = 16)
+{
     // Generate some cryptographically safe random bytes
     //  Generate a little more than requested as we'll lose some later converting
     $random_bytes = random_bytes($length + 5);
@@ -21,7 +22,8 @@ function randomString($length = 16) {
 }
 
 // Older keygen function - only used for TOTP currently
-function key32gen() {
+function key32gen()
+{
     $chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
     $chars .= "234567";
     while (1) {
@@ -35,12 +37,14 @@ function key32gen() {
     return $key;
 }
 
-function nullable_htmlentities($unsanitizedInput) {
+function nullable_htmlentities($unsanitizedInput)
+{
     //return htmlentities($unsanitizedInput ?? '');
     return htmlspecialchars($unsanitizedInput ?? '', ENT_QUOTES, 'UTF-8');
 }
 
-function initials($string) {
+function initials($string)
+{
     if (!empty($string)) {
         $return = '';
         foreach (explode(' ', $string) as $word) {
@@ -51,7 +55,8 @@ function initials($string) {
     }
 }
 
-function removeDirectory($path) {
+function removeDirectory($path)
+{
     if (!file_exists($path)) {
         return;
     }
@@ -63,7 +68,8 @@ function removeDirectory($path) {
     rmdir($path);
 }
 
-function copyDirectory($src, $dst) {
+function copyDirectory($src, $dst)
+{
     if (!is_dir($src)) {
         return;
     }
@@ -89,11 +95,13 @@ function copyDirectory($src, $dst) {
     }
 }
 
-function getUserAgent() {
+function getUserAgent()
+{
     return $_SERVER['HTTP_USER_AGENT'];
 }
 
-function getIP() {
+function getIP()
+{
 
     // Default way to get IP
     $ip = $_SERVER['REMOTE_ADDR'];
@@ -115,46 +123,49 @@ function getIP() {
     return $ip;
 }
 
-function getWebBrowser($user_browser) {
-    $browser        =   "-";
-    $browser_array  =   array(
-        '/msie/i'       =>  "<i class='fab fa-fw fa-internet-explorer text-secondary'></i> Internet Explorer",
-        '/firefox/i'    =>  "<i class='fab fa-fw fa-firefox text-secondary'></i> Firefox",
-        '/safari/i'     =>  "<i class='fab fa-fw fa-safari text-secondary'></i> Safari",
-        '/chrome/i'     =>  "<i class='fab fa-fw fa-chrome text-secondary'></i> Chrome",
-        '/edg/i'        =>  "<i class='fab fa-fw fa-edge text-secondary'></i> Edge",
-        '/opr/i'        =>  "<i class='fab fa-fw fa-opera text-secondary'></i> Opera",
-        '/ddg/i'        =>  "<i class='fas fa-fw fa-globe text-secondary'></i> DuckDuckGo"
+function getWebBrowser($user_browser)
+{
+    $browser = "-";
+    $browser_array = array(
+        '/msie/i' => "<i class='fab fa-fw fa-internet-explorer text-secondary'></i> Internet Explorer",
+        '/firefox/i' => "<i class='fab fa-fw fa-firefox text-secondary'></i> Firefox",
+        '/safari/i' => "<i class='fab fa-fw fa-safari text-secondary'></i> Safari",
+        '/chrome/i' => "<i class='fab fa-fw fa-chrome text-secondary'></i> Chrome",
+        '/edg/i' => "<i class='fab fa-fw fa-edge text-secondary'></i> Edge",
+        '/opr/i' => "<i class='fab fa-fw fa-opera text-secondary'></i> Opera",
+        '/ddg/i' => "<i class='fas fa-fw fa-globe text-secondary'></i> DuckDuckGo"
     );
     foreach ($browser_array as $regex => $value) {
         if (preg_match($regex, $user_browser)) {
-            $browser    =   $value;
+            $browser = $value;
         }
     }
     return $browser;
 }
 
-function getOS($user_os) {
-    $os_platform    =   "-";
-    $os_array       =   array(
-        '/windows/i'            =>  "<i class='fab fa-fw fa-windows text-secondary'></i> Windows",
-        '/macintosh|mac os x/i' =>  "<i class='fab fa-fw fa-apple text-secondary'></i> MacOS",
-        '/linux/i'              =>  "<i class='fab fa-fw fa-linux text-secondary'></i> Linux",
-        '/ubuntu/i'             =>  "<i class='fab fa-fw fa-ubuntu text-secondary'></i> Ubuntu",
-        '/fedora/i'             =>  "<i class='fab fa-fw fa-fedora text-secondary'></i> Fedora",
-        '/iphone/i'             =>  "<i class='fab fa-fw fa-apple text-secondary'></i> iPhone",
-        '/ipad/i'               =>  "<i class='fab fa-fw fa-apple text-secondary'></i> iPad",
-        '/android/i'            =>  "<i class='fab fa-fw fa-android text-secondary'></i> Android"
+function getOS($user_os)
+{
+    $os_platform = "-";
+    $os_array = array(
+        '/windows/i' => "<i class='fab fa-fw fa-windows text-secondary'></i> Windows",
+        '/macintosh|mac os x/i' => "<i class='fab fa-fw fa-apple text-secondary'></i> MacOS",
+        '/linux/i' => "<i class='fab fa-fw fa-linux text-secondary'></i> Linux",
+        '/ubuntu/i' => "<i class='fab fa-fw fa-ubuntu text-secondary'></i> Ubuntu",
+        '/fedora/i' => "<i class='fab fa-fw fa-fedora text-secondary'></i> Fedora",
+        '/iphone/i' => "<i class='fab fa-fw fa-apple text-secondary'></i> iPhone",
+        '/ipad/i' => "<i class='fab fa-fw fa-apple text-secondary'></i> iPad",
+        '/android/i' => "<i class='fab fa-fw fa-android text-secondary'></i> Android"
     );
     foreach ($os_array as $regex => $value) {
         if (preg_match($regex, $user_os)) {
-            $os_platform    =   $value;
+            $os_platform = $value;
         }
     }
     return $os_platform;
 }
 
-function getDevice() {
+function getDevice()
+{
     $tablet_browser = 0;
     $mobile_browser = 0;
     if (preg_match('/(tablet|ipad|playbook)|(android(?!.*(mobi|opera mini)))/i', strtolower($_SERVER['HTTP_USER_AGENT']))) {
@@ -168,15 +179,91 @@ function getDevice() {
     }
     $mobile_ua = strtolower(substr(getUserAgent(), 0, 4));
     $mobile_agents = array(
-        'w3c ', 'acs-', 'alav', 'alca', 'amoi', 'audi', 'avan', 'benq', 'bird', 'blac',
-        'blaz', 'brew', 'cell', 'cldc', 'cmd-', 'dang', 'doco', 'eric', 'hipt', 'inno',
-        'ipaq', 'java', 'jigs', 'kddi', 'keji', 'leno', 'lg-c', 'lg-d', 'lg-g', 'lge-',
-        'maui', 'maxo', 'midp', 'mits', 'mmef', 'mobi', 'mot-', 'moto', 'mwbp', 'nec-',
-        'newt', 'noki', 'palm', 'pana', 'pant', 'phil', 'play', 'port', 'prox',
-        'qwap', 'sage', 'sams', 'sany', 'sch-', 'sec-', 'send', 'seri', 'sgh-', 'shar',
-        'sie-', 'siem', 'smal', 'smar', 'sony', 'sph-', 'symb', 't-mo', 'teli', 'tim-',
-        'tosh', 'tsm-', 'upg1', 'upsi', 'vk-v', 'voda', 'wap-', 'wapa', 'wapi', 'wapp',
-        'wapr', 'webc', 'winw', 'winw', 'xda ', 'xda-'
+        'w3c ',
+        'acs-',
+        'alav',
+        'alca',
+        'amoi',
+        'audi',
+        'avan',
+        'benq',
+        'bird',
+        'blac',
+        'blaz',
+        'brew',
+        'cell',
+        'cldc',
+        'cmd-',
+        'dang',
+        'doco',
+        'eric',
+        'hipt',
+        'inno',
+        'ipaq',
+        'java',
+        'jigs',
+        'kddi',
+        'keji',
+        'leno',
+        'lg-c',
+        'lg-d',
+        'lg-g',
+        'lge-',
+        'maui',
+        'maxo',
+        'midp',
+        'mits',
+        'mmef',
+        'mobi',
+        'mot-',
+        'moto',
+        'mwbp',
+        'nec-',
+        'newt',
+        'noki',
+        'palm',
+        'pana',
+        'pant',
+        'phil',
+        'play',
+        'port',
+        'prox',
+        'qwap',
+        'sage',
+        'sams',
+        'sany',
+        'sch-',
+        'sec-',
+        'send',
+        'seri',
+        'sgh-',
+        'shar',
+        'sie-',
+        'siem',
+        'smal',
+        'smar',
+        'sony',
+        'sph-',
+        'symb',
+        't-mo',
+        'teli',
+        'tim-',
+        'tosh',
+        'tsm-',
+        'upg1',
+        'upsi',
+        'vk-v',
+        'voda',
+        'wap-',
+        'wapa',
+        'wapi',
+        'wapp',
+        'wapr',
+        'webc',
+        'winw',
+        'winw',
+        'xda ',
+        'xda-'
     );
     if (in_array($mobile_ua, $mobile_agents)) {
         $mobile_browser++;
@@ -201,7 +288,8 @@ function getDevice() {
     }
 }
 
-function truncate($text, $chars) {
+function truncate($text, $chars)
+{
     if (strlen($text) <= $chars) {
         return $text;
     }
@@ -214,7 +302,8 @@ function truncate($text, $chars) {
     return $text . "...";
 }
 
-function formatPhoneNumber($phoneNumber, $country_code = '', $show_country_code = false) {
+function formatPhoneNumber($phoneNumber, $country_code = '', $show_country_code = false)
+{
     // Remove all non-digit characters
     $digits = preg_replace('/\D/', '', $phoneNumber ?? '');
     $formatted = '';
@@ -225,7 +314,7 @@ function formatPhoneNumber($phoneNumber, $country_code = '', $show_country_code 
     }
 
     // Helper function to safely check the first digit
-    $startsWith = function($str, $char) {
+    $startsWith = function ($str, $char) {
         return isset($str[0]) && $str[0] === $char;
     };
 
@@ -375,7 +464,8 @@ function formatPhoneNumber($phoneNumber, $country_code = '', $show_country_code 
     return $show_country_code && $country_code ? "+$country_code $formatted" : $formatted;
 }
 
-function mkdirMissing($dir) {
+function mkdirMissing($dir)
+{
     if (!is_dir($dir)) {
         mkdir($dir);
     }
@@ -383,7 +473,8 @@ function mkdirMissing($dir) {
 
 // Called during initial setup
 // Encrypts the master key with the user's password
-function setupFirstUserSpecificKey($user_password, $site_encryption_master_key) {
+function setupFirstUserSpecificKey($user_password, $site_encryption_master_key)
+{
     $iv = randomString();
     $salt = randomString();
 
@@ -400,8 +491,9 @@ function setupFirstUserSpecificKey($user_password, $site_encryption_master_key) 
  * For additional users / password changes (and now the API)
  * New Users: Requires the admin setting up their account have a Specific/Session key configured
  * Password Changes: Will use the current info in the session.
-*/
-function encryptUserSpecificKey($user_password) {
+ */
+function encryptUserSpecificKey($user_password)
+{
     $iv = randomString();
     $salt = randomString();
 
@@ -471,12 +563,12 @@ function decryptCredentialEntry($credential_password_ciphertext)
 {
 
     // Split the credential into IV and Ciphertext
-    $credential_iv =  substr($credential_password_ciphertext, 0, 16);
+    $credential_iv = substr($credential_password_ciphertext, 0, 16);
     $credential_ciphertext = $salt = substr($credential_password_ciphertext, 16);
 
     // Get the user session info.
     $user_encryption_session_ciphertext = $_SESSION['user_encryption_session_ciphertext'];
-    $user_encryption_session_iv =  $_SESSION['user_encryption_session_iv'];
+    $user_encryption_session_iv = $_SESSION['user_encryption_session_iv'];
     $user_encryption_session_key = $_COOKIE['user_encryption_session_key'];
 
     // Decrypt the session key to get the master key
@@ -493,7 +585,7 @@ function encryptCredentialEntry($credential_password_cleartext)
 
     // Get the user session info.
     $user_encryption_session_ciphertext = $_SESSION['user_encryption_session_ciphertext'];
-    $user_encryption_session_iv =  $_SESSION['user_encryption_session_iv'];
+    $user_encryption_session_iv = $_SESSION['user_encryption_session_iv'];
     $user_encryption_session_key = $_COOKIE['user_encryption_session_key'];
 
     //Decrypt the session key to get the master key
@@ -505,10 +597,10 @@ function encryptCredentialEntry($credential_password_cleartext)
     return $iv . $ciphertext;
 }
 
-function apiDecryptCredentialEntry($credential_ciphertext, $api_key_decrypt_hash, #[\SensitiveParameter]$api_key_decrypt_password)
+function apiDecryptCredentialEntry($credential_ciphertext, $api_key_decrypt_hash, #[\SensitiveParameter] $api_key_decrypt_password)
 {
     // Split the Credential entry (username/password) into IV and Ciphertext
-    $credential_iv =  substr($credential_ciphertext, 0, 16);
+    $credential_iv = substr($credential_ciphertext, 0, 16);
     $credential_ciphertext = $salt = substr($credential_ciphertext, 16);
 
     // Decrypt the api hash to get the master key
@@ -518,7 +610,7 @@ function apiDecryptCredentialEntry($credential_ciphertext, $api_key_decrypt_hash
     return openssl_decrypt($credential_ciphertext, 'aes-128-cbc', $site_encryption_master_key, 0, $credential_iv);
 }
 
-function apiEncryptCredentialEntry(#[\SensitiveParameter]$credential_cleartext, $api_key_decrypt_hash, #[\SensitiveParameter]$api_key_decrypt_password)
+function apiEncryptCredentialEntry(#[\SensitiveParameter] $credential_cleartext, $api_key_decrypt_hash, #[\SensitiveParameter] $api_key_decrypt_password)
 {
     $iv = randomString();
 
@@ -557,7 +649,7 @@ function getDomainRecords($name)
     // Sort A records (if multiple records exist)
     if (!empty($records['a'])) {
         $a_records = explode("\n", $records['a']);
-        array_walk($a_records, function(&$record) {
+        array_walk($a_records, function (&$record) {
             $record = trim($record);
         });
         sort($a_records);
@@ -567,7 +659,7 @@ function getDomainRecords($name)
     // Sort NS records (if multiple records exist)
     if (!empty($records['ns'])) {
         $ns_records = explode("\n", $records['ns']);
-        array_walk($ns_records, function(&$record) {
+        array_walk($ns_records, function (&$record) {
             $record = trim($record);
         });
         sort($ns_records);
@@ -577,7 +669,7 @@ function getDomainRecords($name)
     // Sort MX records (if multiple records exist)
     if (!empty($records['mx'])) {
         $mx_records = explode("\n", $records['mx']);
-        array_walk($mx_records, function(&$record) {
+        array_walk($mx_records, function (&$record) {
             $record = trim($record);
         });
         sort($mx_records);
@@ -587,7 +679,7 @@ function getDomainRecords($name)
     // Sort TXT records (if multiple records exist)
     if (!empty($records['txt'])) {
         $txt_records = explode("\n", $records['txt']);
-        array_walk($txt_records, function(&$record) {
+        array_walk($txt_records, function (&$record) {
             $record = trim($record);
         });
         sort($txt_records);
@@ -624,7 +716,7 @@ function getSSL($full_name)
 
     // Get SSL/TSL certificate (using verify peer false to allow for self-signed certs) for domain on default port
     $socket = "ssl://$name:$port";
-    $get = stream_context_create(array("ssl" => array("capture_peer_cert" => true, "verify_peer" => false,)));
+    $get = stream_context_create(array("ssl" => array("capture_peer_cert" => true, "verify_peer" => false, )));
     $read = stream_socket_client($socket, $errno, $errstr, 5, STREAM_CLIENT_CONNECT, $get);
 
     // If the socket connected
@@ -671,7 +763,8 @@ function validateCSRFToken($token)
  * Accountant - 1
  */
 
-function validateAdminRole() {
+function validateAdminRole()
+{
     global $session_user_role;
     if (!isset($session_user_role) || $session_user_role != 3) {
         $_SESSION['alert_type'] = "danger";
@@ -683,7 +776,8 @@ function validateAdminRole() {
 
 // LEGACY
 // Validates a user is a tech (or admin). Stops page load and attempts to direct away from the page if not (i.e. user is an accountant)
-function validateTechRole() {
+function validateTechRole()
+{
     global $session_user_role;
     if (!isset($session_user_role) || $session_user_role == 1) {
         $_SESSION['alert_type'] = "danger";
@@ -695,7 +789,8 @@ function validateTechRole() {
 
 // LEGACY
 // Validates a user is an accountant (or admin). Stops page load and attempts to direct away from the page if not (i.e. user is a tech)
-function validateAccountantRole() {
+function validateAccountantRole()
+{
     global $session_user_role;
     if (!isset($session_user_role) || $session_user_role == 2) {
         $_SESSION['alert_type'] = "danger";
@@ -805,7 +900,8 @@ function checkFileUpload($file, $allowed_extensions)
     return $secureFilename;
 }
 
-function sanitizeInput($input) {
+function sanitizeInput($input)
+{
     global $mysqli;
 
     if (!empty($input)) {
@@ -828,7 +924,8 @@ function sanitizeInput($input) {
     return $input;
 }
 
-function cleanInput($input) {
+function cleanInput($input)
+{
     // Only process non-empty input
     if (!empty($input)) {
         // Normalize encoding to UTF-8 if it’s not valid
@@ -1047,13 +1144,20 @@ function generateReadablePassword($security_level)
 
     // Mapping of letters to special characters and numbers
     $mappings = [
-        'A' => '@', 'a' => '@',
-        'E' => '3', 'e' => '3',
-        'I' => '!', 'i' => '!',
-        'O' => '0', 'o' => '0',
-        'S' => '$', 's' => '$',
-        'T' => '+', 't' => '+',
-        'B' => '8', 'b' => '8'
+        'A' => '@',
+        'a' => '@',
+        'E' => '3',
+        'e' => '3',
+        'I' => '!',
+        'i' => '!',
+        'O' => '0',
+        'o' => '0',
+        'S' => '$',
+        's' => '$',
+        'T' => '+',
+        't' => '+',
+        'B' => '8',
+        'b' => '8'
     ];
 
     // Generate an array of indices based on the password length
@@ -1077,7 +1181,8 @@ function generateReadablePassword($security_level)
     return $password;
 }
 
-function addToMailQueue($data) {
+function addToMailQueue($data)
+{
 
     global $mysqli;
 
@@ -1142,19 +1247,20 @@ function isMobile()
     return preg_match('/(android|avantgo|blackberry|bolt|boost|cricket|docomo|fone|hiptop|mini|opera mini|palm|phone|pie|tablet|up.browser|up.link|webos|wos)/i', $_SERVER['HTTP_USER_AGENT']);
 }
 
-function createiCalStrCancel($originaliCalStr) {
+function createiCalStrCancel($originaliCalStr)
+{
     require_once "plugins/zapcal/zapcallib.php";
 
     // Import the original iCal string
     $cal_event = new ZCiCal($originaliCalStr);
 
     // Iterate through the iCalendar object to find VEVENT nodes
-    foreach($cal_event->tree->child as $node) {
-        if($node->getName() == "VEVENT") {
+    foreach ($cal_event->tree->child as $node) {
+        if ($node->getName() == "VEVENT") {
             // Check if STATUS node exists, update it, or add a new one
             $statusFound = false;
-            foreach($node->data as $key => $value) {
-                if($key == "STATUS") {
+            foreach ($node->data as $key => $value) {
+                if ($key == "STATUS") {
                     $value->setValue("CANCELLED");
                     $statusFound = true;
                     break; // Exit the loop once the STATUS is updated
@@ -1171,7 +1277,8 @@ function createiCalStrCancel($originaliCalStr) {
     return $cal_event->export();
 }
 
-function getTicketStatusName($ticket_status) {
+function getTicketStatusName($ticket_status)
+{
 
     global $mysqli;
 
@@ -1188,7 +1295,8 @@ function getTicketStatusName($ticket_status) {
 }
 
 
-function fetchUpdates() {
+function fetchUpdates()
+{
 
     global $repo_branch;
 
@@ -1216,7 +1324,8 @@ function fetchUpdates() {
 
 }
 
-function getDomainExpirationDate($domain) {
+function getDomainExpirationDate($domain)
+{
     // Execute the whois command
     $result = shell_exec("whois " . escapeshellarg($domain));
     if (!$result || !checkdnsrr($domain, 'SOA')) {
@@ -1349,7 +1458,8 @@ zgjRYR/zGN5l+az6RB3+0mJRdZdv/y2aRkBlwTxx2gOrPbQAco4a/IOmkE3EbHe7
 }
 
 // When provided a module name (e.g. module_support), returns the associated permission level (false=none, 1=read, 2=write, 3=full)
-function lookupUserPermission($module) {
+function lookupUserPermission($module)
+{
     global $mysqli, $session_is_admin, $session_user_role;
 
     if (isset($session_is_admin) && $session_is_admin === true) {
@@ -1383,7 +1493,8 @@ function lookupUserPermission($module) {
 }
 
 // Ensures a user has access to a module (e.g. module_support) with at least the required permission level provided (defaults to read)
-function enforceUserPermission($module, $check_access_level = 1) {
+function enforceUserPermission($module, $check_access_level = 1)
+{
     $permitted_access_level = lookupUserPermission($module);
 
     if (!$permitted_access_level || $permitted_access_level < $check_access_level) {
@@ -1399,7 +1510,8 @@ function enforceUserPermission($module, $check_access_level = 1) {
 }
 
 // TODO: Probably remove this
-function enforceAdminPermission() {
+function enforceAdminPermission()
+{
     global $session_is_admin;
     if (!isset($session_is_admin) || !$session_is_admin) {
         exit(WORDING_ROLECHECK_FAILED . "<br>Tell your admin: Your role does not have admin access.");
@@ -1407,7 +1519,8 @@ function enforceAdminPermission() {
     return true;
 }
 
-function customAction($trigger, $entity) {
+function customAction($trigger, $entity)
+{
     $original_dir = getcwd(); // Save
 
     chdir(dirname(__FILE__));
@@ -1418,7 +1531,8 @@ function customAction($trigger, $entity) {
     chdir($original_dir); // Restore original working directory
 }
 
-function appNotify($type, $details, $action = null, $client_id = 0, $entity_id = 0) {
+function appNotify($type, $details, $action = null, $client_id = 0, $entity_id = 0)
+{
     global $mysqli;
 
     if (is_null($action)) {
@@ -1440,7 +1554,8 @@ function appNotify($type, $details, $action = null, $client_id = 0, $entity_id =
     }
 }
 
-function logAction($type, $action, $description, $client_id = 0, $entity_id = 0) {
+function logAction($type, $action, $description, $client_id = 0, $entity_id = 0)
+{
     global $mysqli, $session_user_agent, $session_ip, $session_user_id;
 
     if (empty($session_user_id)) {
@@ -1454,7 +1569,8 @@ function logAction($type, $action, $description, $client_id = 0, $entity_id = 0)
     mysqli_query($mysqli, "INSERT INTO logs SET log_type = '$type', log_action = '$action', log_description = '$description', log_ip = '$session_ip', log_user_agent = '$session_user_agent', log_client_id = $client_id, log_user_id = $session_user_id, log_entity_id = $entity_id");
 }
 
-function logApp($category, $type, $details) {
+function logApp($category, $type, $details)
+{
     global $mysqli;
 
     $category = substr($category, 0, 200);
@@ -1463,7 +1579,8 @@ function logApp($category, $type, $details) {
     mysqli_query($mysqli, "INSERT INTO app_logs SET app_log_category = '$category', app_log_type = '$type', app_log_details = '$details'");
 }
 
-function logAuth($status, $details) {
+function logAuth($status, $details)
+{
     global $mysqli, $session_user_agent, $session_ip, $session_user_id;
 
     if (empty($session_user_id)) {
@@ -1474,7 +1591,8 @@ function logAuth($status, $details) {
 }
 
 // Helper function for missing data fallback
-function getFallback($data) {
+function getFallback($data)
+{
     return !empty($data) ? $data : '-';
 }
 
@@ -1490,7 +1608,8 @@ function getFallback($data) {
  *
  * @return mixed The escaped field value, or null if not found or invalid input.
  */
-function getFieldById($table, $id, $field, $escape_method = 'sql') {
+function getFieldById($table, $id, $field, $escape_method = 'sql')
+{
     global $mysqli;  // Use the global MySQLi connection
 
     // Validate table and field names to allow only letters, numbers, and underscores
@@ -1499,7 +1618,7 @@ function getFieldById($table, $id, $field, $escape_method = 'sql') {
     }
 
     // Sanitize id as an integer
-    $id = (int)$id;
+    $id = (int) $id;
 
     // Get the list of columns and their details from the table
     $columns_result = mysqli_query($mysqli, "SHOW COLUMNS FROM `$table`");
@@ -1512,7 +1631,7 @@ function getFieldById($table, $id, $field, $escape_method = 'sql') {
     while ($row = mysqli_fetch_assoc($columns_result)) {
         $columns[$row['Field']] = [
             'type' => $row['Type'],
-            'key'  => $row['Key']
+            'key' => $row['Key']
         ];
     }
 
@@ -1552,12 +1671,12 @@ function getFieldById($table, $id, $field, $escape_method = 'sql') {
             case 'json':
                 return json_encode($value); // Escape for JSON
             case 'int':
-                return (int)$value; // Explicitly cast value to integer
+                return (int) $value; // Explicitly cast value to integer
             case 'sql':
             default:
                 // Auto-detect if the field type is integer
                 if (stripos($columns[$field]['type'], 'int') !== false) {
-                    return (int)$value;
+                    return (int) $value;
                 } else {
                     return sanitizeInput($value); // Escape for SQL using a custom function
                 }
@@ -1568,7 +1687,8 @@ function getFieldById($table, $id, $field, $escape_method = 'sql') {
 }
 
 // Recursive function to display folder options - Used in folders files and documents
-function display_folder_options($parent_folder_id, $client_id, $indent = 0) {
+function display_folder_options($parent_folder_id, $client_id, $indent = 0)
+{
     global $mysqli;
 
     $sql_folders = mysqli_query($mysqli, "SELECT * FROM folders WHERE parent_folder = $parent_folder_id AND folder_client_id = $client_id ORDER BY folder_name ASC");
@@ -1581,8 +1701,10 @@ function display_folder_options($parent_folder_id, $client_id, $indent = 0) {
 
         // Check if this folder is selected
         $selected = '';
-        if ((isset($_GET['folder_id']) && intval($_GET['folder_id']) === $folder_id) ||
-            (isset($_POST['folder']) && intval($_POST['folder']) === $folder_id)) {
+        if (
+            (isset($_GET['folder_id']) && intval($_GET['folder_id']) === $folder_id) ||
+            (isset($_POST['folder']) && intval($_POST['folder']) === $folder_id)
+        ) {
             $selected = 'selected';
         }
 
@@ -1593,8 +1715,9 @@ function display_folder_options($parent_folder_id, $client_id, $indent = 0) {
     }
 }
 
-function sanitize_url($url) {
-    $allowed = ['http', 'https', 'file', 'ftp', 'ftps', 'sftp', 'dav', 'webdav', 'caldav', 'carddav',  'ssh', 'telnet', 'smb', 'rdp', 'vnc', 'rustdesk', 'anydesk', 'connectwise', 'splashtop', 'sip', 'sips', 'ldap', 'ldaps'];
+function sanitize_url($url)
+{
+    $allowed = ['http', 'https', 'file', 'ftp', 'ftps', 'sftp', 'dav', 'webdav', 'caldav', 'carddav', 'ssh', 'telnet', 'smb', 'rdp', 'vnc', 'rustdesk', 'anydesk', 'connectwise', 'splashtop', 'sip', 'sips', 'ldap', 'ldaps'];
     $parts = parse_url($url ?? '');
     if (isset($parts['scheme']) && !in_array(strtolower($parts['scheme']), $allowed)) {
         // Remove the scheme and colon
@@ -1613,7 +1736,8 @@ function sanitize_url($url) {
 }
 
 // Redirect Function
-function redirect($url = null, $permanent = false) {
+function redirect($url = null, $permanent = false)
+{
     // Use referer if no URL is provided
     if (!$url) {
         $url = $_SERVER['HTTP_REFERER'] ?? 'index.php';
@@ -1631,13 +1755,15 @@ function redirect($url = null, $permanent = false) {
 }
 
 //Flash Alert Function
-function flash_alert(string $message, string $type = 'success'): void {
+function flash_alert(string $message, string $type = 'success'): void
+{
     $_SESSION['alert_type'] = $type;
     $_SESSION['alert_message'] = $message;
 }
 
 // Sanitize File Names
-function sanitize_filename($filename, $strict = false) {
+function sanitize_filename($filename, $strict = false)
+{
     // Remove path information and dots around the filename
     $filename = basename($filename);
 
@@ -1666,15 +1792,16 @@ function sanitize_filename($filename, $strict = false) {
     return $filename;
 }
 
-function saveBase64Images(string $html, string $baseFsPath, string $baseWebPath, int $ownerId): string {
+function saveBase64Images(string $html, string $baseFsPath, string $baseWebPath, int $ownerId): string
+{
     // Normalize paths
-    $baseFsPath  = rtrim($baseFsPath, '/\\') . '/';
+    $baseFsPath = rtrim($baseFsPath, '/\\') . '/';
     $baseWebPath = rtrim($baseWebPath, '/\\') . '/';
 
     $targetDir = $baseFsPath . $ownerId . "/";
 
     $folderCreated = false;   // <-- NEW FLAG
-    $savedAny      = false;   // <-- Track if ANY images processed
+    $savedAny = false;   // <-- Track if ANY images processed
 
     libxml_use_internal_errors(true);
     $dom = new DOMDocument();
@@ -1700,7 +1827,7 @@ function saveBase64Images(string $html, string $baseFsPath, string $baseWebPath,
             }
 
             $mimeType = strtolower($matches[1]);
-            $base64   = $matches[2];
+            $base64 = $matches[2];
 
             $binary = base64_decode($base64);
             if ($binary === false) {
@@ -1710,11 +1837,20 @@ function saveBase64Images(string $html, string $baseFsPath, string $baseWebPath,
             // Extension mapping
             switch ($mimeType) {
                 case 'jpeg':
-                case 'jpg': $ext = 'jpg'; break;
-                case 'png': $ext = 'png'; break;
-                case 'gif': $ext = 'gif'; break;
-                case 'webp': $ext = 'webp'; break;
-                default: $ext = 'png';
+                case 'jpg':
+                    $ext = 'jpg';
+                    break;
+                case 'png':
+                    $ext = 'png';
+                    break;
+                case 'gif':
+                    $ext = 'gif';
+                    break;
+                case 'webp':
+                    $ext = 'webp';
+                    break;
+                default:
+                    $ext = 'png';
             }
 
             // Secure random filename
@@ -1749,9 +1885,10 @@ function saveBase64Images(string $html, string $baseFsPath, string $baseWebPath,
     return $html;
 }
 
-function cleanupUnusedImages(string $html, string $folderFsPath, string $folderWebPath) {
+function cleanupUnusedImages(string $html, string $folderFsPath, string $folderWebPath)
+{
 
-    $folderFsPath  = rtrim($folderFsPath, '/\\') . '/';
+    $folderFsPath = rtrim($folderFsPath, '/\\') . '/';
     $folderWebPath = rtrim($folderWebPath, '/\\') . '/';
 
     if (!is_dir($folderFsPath)) {
@@ -1804,7 +1941,7 @@ function dbExecute(mysqli $mysqli, string $sql, array $params = []): mysqli_stmt
     }
 
     if (!empty($params)) {
-        $types  = '';
+        $types = '';
         $values = [];
 
         foreach ($params as $param) {
@@ -1814,10 +1951,10 @@ function dbExecute(mysqli $mysqli, string $sql, array $params = []): mysqli_stmt
                 $types .= 'd';
             } elseif (is_bool($param)) {
                 $types .= 'i';
-                $param  = $param ? 1 : 0;
+                $param = $param ? 1 : 0;
             } elseif (is_null($param)) {
                 $types .= 's';
-                $param  = null;
+                $param = null;
             } else {
                 $types .= 's';
             }
@@ -1841,7 +1978,7 @@ function dbExecute(mysqli $mysqli, string $sql, array $params = []): mysqli_stmt
  */
 function dbFetchAll(mysqli $mysqli, string $sql, array $params = []): array
 {
-    $stmt   = dbExecute($mysqli, $sql, $params);
+    $stmt = dbExecute($mysqli, $sql, $params);
     $result = $stmt->get_result();
     if ($result === false) {
         return [];
@@ -1854,7 +1991,7 @@ function dbFetchAll(mysqli $mysqli, string $sql, array $params = []): array
  */
 function dbFetchOne(mysqli $mysqli, string $sql, array $params = []): ?array
 {
-    $stmt   = dbExecute($mysqli, $sql, $params);
+    $stmt = dbExecute($mysqli, $sql, $params);
     $result = $stmt->get_result();
     if ($result === false) {
         return null;
@@ -1899,7 +2036,7 @@ function dbInsert(mysqli $mysqli, string $table, array $data): int
         $setParts[] = "$column = ?";
     }
 
-    $sql    = "INSERT INTO $table SET " . implode(', ', $setParts);
+    $sql = "INSERT INTO $table SET " . implode(', ', $setParts);
     $params = array_values($data);
 
     dbExecute($mysqli, $sql, $params);
@@ -1927,10 +2064,10 @@ function dbUpdate(
     }
 
     if (is_array($where)) {
-        $whereParts  = [];
+        $whereParts = [];
         $whereParams = [];
         foreach ($where as $column => $value) {
-            $whereParts[]  = "$column = ?";
+            $whereParts[] = "$column = ?";
             $whereParams[] = $value;
         }
         $whereSql = implode(' AND ', $whereParts);
@@ -1938,7 +2075,7 @@ function dbUpdate(
         $whereSql = $where;
     }
 
-    $sql    = "UPDATE $table SET " . implode(', ', $setParts) . " WHERE $whereSql";
+    $sql = "UPDATE $table SET " . implode(', ', $setParts) . " WHERE $whereSql";
     $params = array_merge(array_values($data), $whereParams);
 
     $stmt = dbExecute($mysqli, $sql, $params);
@@ -1968,10 +2105,10 @@ function dbDelete(
     }
 
     if (is_array($where)) {
-        $whereParts  = [];
+        $whereParts = [];
         $whereParams = [];
         foreach ($where as $column => $value) {
-            $whereParts[]  = "$column = ?";
+            $whereParts[] = "$column = ?";
             $whereParams[] = $value;
         }
         $whereSql = implode(' AND ', $whereParts);
@@ -1979,7 +2116,7 @@ function dbDelete(
         $whereSql = $where;
     }
 
-    $sql  = "DELETE FROM $table WHERE $whereSql";
+    $sql = "DELETE FROM $table WHERE $whereSql";
     $stmt = dbExecute($mysqli, $sql, $whereParams);
     return $stmt->affected_rows;
 }
@@ -2001,3 +2138,4 @@ function dbRollback(mysqli $mysqli): void
 {
     $mysqli->rollback();
 }
+

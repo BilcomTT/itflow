@@ -15,13 +15,49 @@ function triggerWebhook($event_type, $data, $client_id = 0)
 {
     global $mysqli;
 
+    // Ensure database connection is valid
+    if (!$mysqli || !($mysqli instanceof mysqli)) {
+        // Attempt to access global connection if passed differently or reconnect
+        // This handles cases where $mysqli might be null in certain scopes
+        if (isset($GLOBALS['mysqli']) && $GLOBALS['mysqli'] instanceof mysqli) {
+            $mysqli = $GLOBALS['mysqli'];
+        } else {
+            error_log("Webhook Error: Database connection not available in triggerWebhook for event: $event_type");
+            return;
+        }
+    }
+
     // Build query to get matching webhooks
     $event_type_escaped = mysqli_real_escape_string($mysqli, $event_type);
 
     $sql = "SELECT * FROM webhooks 
             WHERE webhook_enabled = 1 
-            AND (webhook_client_id = 0 OR webhook_client_id = $client_id)
             AND (webhook_event_types LIKE '%\"$event_type_escaped\"%' OR webhook_event_types LIKE '%\"*\"%')";
+    
+    // Add client and tag filtering logic
+    if ($client_id > 0) {
+        $client_id = intval($client_id);
+        
+        // Get client tags
+        $client_tags = [];
+        $tags_sql = mysqli_query($mysqli, "SELECT tag_id FROM client_tags WHERE client_tag_client_id = $client_id");
+        while ($tag = mysqli_fetch_assoc($tags_sql)) {
+            $client_tags[] = intval($tag['tag_id']);
+        }
+        $client_tags_str = implode(',', $client_tags);
+        if (empty($client_tags_str)) {
+            $client_tags_str = '0';
+        }
+
+        $sql .= " AND (
+            webhook_client_id = 0 
+            OR webhook_client_id = $client_id
+            OR (webhook_client_id = -1 AND webhook_tag_id IN ($client_tags_str))
+        )";
+    } else {
+        // If no specific client is involved (system event), only trigger global webhooks
+        $sql .= " AND webhook_client_id = 0";
+    }
 
     $result = mysqli_query($mysqli, $sql);
 
@@ -69,7 +105,7 @@ function sendWebhook($webhook, $event_type, $data, $retry_count = 1)
         'data' => $data
     ];
 
-    $payload_json = json_encode($payload);
+    $payload_json = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
     // Generate HMAC signature
     $signature = generateWebhookSignature($payload_json, $secret);
@@ -123,39 +159,27 @@ function sendWebhook($webhook, $event_type, $data, $retry_count = 1)
         // Mark as permanently failed after 5 attempts
         mysqli_query($mysqli, "UPDATE webhook_logs SET webhook_log_status = 'failed' WHERE webhook_log_id = $log_id");
         
-        // Trigger notification for failed webhook
-        triggerWebhookNotification($webhook_id, $event_type);
+        // Notify admin about failed webhook
+        $notification_message = "Webhook failed after 5 attempts. ID: $webhook_id, Event: $event_type";
+        // Assuming there's a notification function or table, for now we log it or add a TODO
+        // For ITFlow, we usually insert into notifications table
+        // Check if notifications table exists or function is available
+        // Simple insertion into notifications table if it follows standard schema
+        // Get all admin users
+        $admins_sql = mysqli_query($mysqli, "SELECT user_id FROM users WHERE user_role = 'admin' AND user_archived_at IS NULL");
+        while ($admin = mysqli_fetch_assoc($admins_sql)) {
+            $user_id = intval($admin['user_id']);
+            $sql_notif = "INSERT INTO notifications SET 
+                notification_type = 'Webhook Failed',
+                notification_message = '$notification_message',
+                notification_url = 'admin/webhooks.php?view_log=$webhook_id',
+                notification_user_id = $user_id,
+                notification_created_at = NOW()";
+            mysqli_query($mysqli, $sql_notif);
+        }
     }
 
     return $success;
-}
-
-/**
- * Trigger a notification for a failed webhook
- *
- * @param int $webhook_id The webhook ID
- * @param string $event_type The event type
- * @return void
- */
-function triggerWebhookNotification($webhook_id, $event_type)
-{
-    global $mysqli;
-
-    $webhook_id = intval($webhook_id);
-    $event_type = mysqli_real_escape_string($mysqli, $event_type);
-
-    // Get webhook details
-    $result = mysqli_query($mysqli, "SELECT webhook_name FROM webhooks WHERE webhook_id = $webhook_id");
-    $webhook = mysqli_fetch_assoc($result);
-    $webhook_name = $webhook['webhook_name'];
-
-    // Insert notification
-    mysqli_query($mysqli, "INSERT INTO notifications SET
-        notification_user_id = 0,
-        notification_title = 'Webhook Failed',
-        notification_message = 'Webhook \"$webhook_name\" failed to deliver event \"$event_type\"',
-        notification_created_at = NOW()
-    ");
 }
 
 /**
@@ -483,5 +507,3 @@ function getWebhookEventTypes()
         ]
     ];
 }
-
-?>

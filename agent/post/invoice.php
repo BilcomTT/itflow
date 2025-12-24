@@ -6,6 +6,8 @@
 
 defined('FROM_POST_HANDLER') || die("Direct file access is not allowed");
 
+require_once dirname(__FILE__) . '/../../includes/webhook_functions.php';
+
 if (isset($_POST['add_invoice'])) {
 
     require_once 'invoice_model.php';
@@ -31,13 +33,15 @@ if (isset($_POST['add_invoice'])) {
     //Generate a unique URL key for clients to access
     $url_key = randomString(156);
 
-    mysqli_query($mysqli,"INSERT INTO invoices SET invoice_prefix = '$config_invoice_prefix', invoice_number = $invoice_number, invoice_scope = '$scope', invoice_date = '$date', invoice_due = DATE_ADD('$date', INTERVAL $client_net_terms day), invoice_discount_amount = '$invoice_discount', invoice_amount = '$invoice_amount', invoice_currency_code = '$session_company_currency', invoice_category_id = $category, invoice_status = 'Draft', invoice_url_key = '$url_key', invoice_client_id = $client_id");
+    mysqli_query($mysqli, "INSERT INTO invoices SET invoice_prefix = '$config_invoice_prefix', invoice_number = $invoice_number, invoice_scope = '$scope', invoice_date = '$date', invoice_due = DATE_ADD('$date', INTERVAL $client_net_terms day), invoice_discount_amount = '$invoice_discount', invoice_amount = '$invoice_amount', invoice_currency_code = '$session_company_currency', invoice_category_id = $category, invoice_status = 'Draft', invoice_url_key = '$url_key', invoice_client_id = $client_id");
 
     $invoice_id = mysqli_insert_id($mysqli);
 
-    mysqli_query($mysqli,"INSERT INTO history SET history_status = 'Draft', history_description = 'Invoice created', history_invoice_id = $invoice_id");
+    mysqli_query($mysqli, "INSERT INTO history SET history_status = 'Draft', history_description = 'Invoice created', history_invoice_id = $invoice_id");
 
     logAction("Invoice", "Create", "$session_name created Invoice $config_invoice_prefix$invoice_number - $scope", $client_id, $invoice_id);
+
+    triggerWebhook('invoice.created', ['invoice_id' => $invoice_id, 'client_id' => $client_id, 'invoice_number' => $config_invoice_prefix . $invoice_number, 'amount' => $invoice_amount], $client_id);
 
     customAction('invoice_create', $invoice_id);
 
@@ -55,25 +59,35 @@ if (isset($_POST['edit_invoice'])) {
     $due = sanitizeInput($_POST['due']);
 
     // Get Invoice Number and Prefix and Client ID for Logging
-    $sql = mysqli_query($mysqli,"SELECT invoice_prefix, invoice_number, invoice_client_id FROM invoices WHERE invoice_id = $invoice_id");
+    $sql = mysqli_query($mysqli, "SELECT invoice_prefix, invoice_number, invoice_client_id FROM invoices WHERE invoice_id = $invoice_id");
     $row = mysqli_fetch_array($sql);
     $invoice_prefix = sanitizeInput($row['invoice_prefix']);
     $invoice_number = intval($row['invoice_number']);
     $client_id = intval($row['invoice_client_id']);
 
     // Calculate new total
-    $sql = mysqli_query($mysqli,"SELECT * FROM invoice_items WHERE item_invoice_id = $invoice_id");
+    $sql = mysqli_query($mysqli, "SELECT * FROM invoice_items WHERE item_invoice_id = $invoice_id");
     $invoice_amount = 0;
-    while($row = mysqli_fetch_array($sql)) {
+    while ($row = mysqli_fetch_array($sql)) {
         $item_total = floatval($row['item_total']);
         $invoice_amount = $invoice_amount + $item_total;
     }
     $invoice_amount = $invoice_amount - $invoice_discount;
 
 
-    mysqli_query($mysqli,"UPDATE invoices SET invoice_scope = '$scope', invoice_date = '$date', invoice_due = '$due', invoice_category_id = $category, invoice_discount_amount = '$invoice_discount', invoice_amount = '$invoice_amount' WHERE invoice_id = $invoice_id");
+    mysqli_query($mysqli, "UPDATE invoices SET invoice_scope = '$scope', invoice_date = '$date', invoice_due = '$due', invoice_category_id = $category, invoice_discount_amount = '$invoice_discount', invoice_amount = '$invoice_amount' WHERE invoice_id = $invoice_id");
 
     logAction("Invoice", "Edit", "$session_name edited Invoice $invoice_prefix$invoice_number - $scope", $client_id, $invoice_id);
+
+    // Trigger webhook for invoice updated
+    triggerWebhook('invoice.updated', [
+        'invoice_id' => $invoice_id,
+        'invoice_number' => $invoice_prefix . $invoice_number,
+        'invoice_scope' => $scope,
+        'invoice_amount' => $invoice_amount,
+        'client_id' => $client_id,
+        'updated_by' => $session_name
+    ], $client_id);
 
     flash_alert("Invoice <strong>$invoice_prefix$invoice_number</strong> edited");
 
@@ -87,7 +101,7 @@ if (isset($_POST['add_invoice_copy'])) {
     $date = sanitizeInput($_POST['date']);
 
     //Get Net Terms
-    $sql = mysqli_query($mysqli,"SELECT * FROM clients, invoices WHERE client_id = invoice_client_id AND invoice_id = $invoice_id");
+    $sql = mysqli_query($mysqli, "SELECT * FROM clients, invoices WHERE client_id = invoice_client_id AND invoice_id = $invoice_id");
     $row = mysqli_fetch_array($sql);
     $client_net_terms = intval($row['client_net_terms']);
     $invoice_scope = sanitizeInput($row['invoice_scope']);
@@ -114,14 +128,14 @@ if (isset($_POST['add_invoice_copy'])) {
     //Generate a unique URL key for clients to access
     $url_key = randomString(156);
 
-    mysqli_query($mysqli,"INSERT INTO invoices SET invoice_prefix = '$config_invoice_prefix', invoice_number = $new_invoice_number, invoice_scope = '$invoice_scope', invoice_date = '$date', invoice_due = DATE_ADD('$date', INTERVAL $client_net_terms day), invoice_category_id = $category_id, invoice_status = 'Draft', invoice_discount_amount = $invoice_discount_amount, invoice_amount = $invoice_amount, invoice_currency_code = '$invoice_currency_code', invoice_note = '$invoice_note', invoice_url_key = '$url_key', invoice_client_id = $client_id");
+    mysqli_query($mysqli, "INSERT INTO invoices SET invoice_prefix = '$config_invoice_prefix', invoice_number = $new_invoice_number, invoice_scope = '$invoice_scope', invoice_date = '$date', invoice_due = DATE_ADD('$date', INTERVAL $client_net_terms day), invoice_category_id = $category_id, invoice_status = 'Draft', invoice_discount_amount = $invoice_discount_amount, invoice_amount = $invoice_amount, invoice_currency_code = '$invoice_currency_code', invoice_note = '$invoice_note', invoice_url_key = '$url_key', invoice_client_id = $client_id");
 
     $new_invoice_id = mysqli_insert_id($mysqli);
 
-    mysqli_query($mysqli,"INSERT INTO history SET history_status = 'Draft', history_description = 'Copied INVOICE!', history_invoice_id = $new_invoice_id");
+    mysqli_query($mysqli, "INSERT INTO history SET history_status = 'Draft', history_description = 'Copied INVOICE!', history_invoice_id = $new_invoice_id");
 
-    $sql_items = mysqli_query($mysqli,"SELECT * FROM invoice_items WHERE item_invoice_id = $invoice_id");
-    while($row = mysqli_fetch_array($sql_items)) {
+    $sql_items = mysqli_query($mysqli, "SELECT * FROM invoice_items WHERE item_invoice_id = $invoice_id");
+    while ($row = mysqli_fetch_array($sql_items)) {
         $item_id = intval($row['item_id']);
         $item_name = sanitizeInput($row['item_name']);
         $item_description = sanitizeInput($row['item_description']);
@@ -133,10 +147,12 @@ if (isset($_POST['add_invoice_copy'])) {
         $item_order = intval($row['item_order']);
         $tax_id = intval($row['item_tax_id']);
 
-        mysqli_query($mysqli,"INSERT INTO invoice_items SET item_name = '$item_name', item_description = '$item_description', item_quantity = $item_quantity, item_price = $item_price, item_subtotal = $item_subtotal, item_tax = $item_tax, item_total = $item_total, item_order = $item_order, item_tax_id = $tax_id, item_invoice_id = $new_invoice_id");
+        mysqli_query($mysqli, "INSERT INTO invoice_items SET item_name = '$item_name', item_description = '$item_description', item_quantity = $item_quantity, item_price = $item_price, item_subtotal = $item_subtotal, item_tax = $item_tax, item_total = $item_total, item_order = $item_order, item_tax_id = $tax_id, item_invoice_id = $new_invoice_id");
     }
 
     logAction("Invoice", "Create", "$session_name created new Invoice $config_invoice_prefix$new_invoice_number from $old_invoice_prefix$old_invoice_prefix", $client_id, $new_invoice_id);
+
+    triggerWebhook('invoice.created', ['invoice_id' => $new_invoice_id, 'client_id' => $client_id, 'invoice_number' => $config_invoice_prefix . $new_invoice_number, 'amount' => $invoice_amount], $client_id);
 
     customAction('invoice_create', $new_invoice_id);
 
@@ -151,17 +167,19 @@ if (isset($_GET['mark_invoice_sent'])) {
     $invoice_id = intval($_GET['mark_invoice_sent']);
 
     // Get Invoice Number and Prefix and Client ID for Logging
-    $sql = mysqli_query($mysqli,"SELECT invoice_prefix, invoice_number, invoice_client_id FROM invoices WHERE invoice_id = $invoice_id");
+    $sql = mysqli_query($mysqli, "SELECT invoice_prefix, invoice_number, invoice_client_id FROM invoices WHERE invoice_id = $invoice_id");
     $row = mysqli_fetch_array($sql);
     $invoice_prefix = sanitizeInput($row['invoice_prefix']);
     $invoice_number = intval($row['invoice_number']);
     $client_id = intval($row['invoice_client_id']);
 
-    mysqli_query($mysqli,"UPDATE invoices SET invoice_status = 'Sent' WHERE invoice_id = $invoice_id");
+    mysqli_query($mysqli, "UPDATE invoices SET invoice_status = 'Sent' WHERE invoice_id = $invoice_id");
 
-    mysqli_query($mysqli,"INSERT INTO history SET history_status = 'Sent', history_description = 'Invoice marked sent', history_invoice_id = $invoice_id");
+    mysqli_query($mysqli, "INSERT INTO history SET history_status = 'Sent', history_description = 'Invoice marked sent', history_invoice_id = $invoice_id");
 
     logAction("Invoice", "Edit", "$session_name marked invoice $invoice_prefix$invoice_number sent", $client_id, $invoice_id);
+
+    triggerWebhook('invoice.sent', ['invoice_id' => $invoice_id, 'client_id' => $client_id, 'invoice_number' => $invoice_prefix . $invoice_number], $client_id);
 
     flash_alert("Invoice marked sent");
 
@@ -174,15 +192,15 @@ if (isset($_GET['mark_invoice_non-billable'])) {
     $invoice_id = intval($_GET['mark_invoice_non-billable']);
 
     // Get Invoice Number and Prefix and Client ID for Logging
-    $sql = mysqli_query($mysqli,"SELECT invoice_prefix, invoice_number, invoice_client_id FROM invoices WHERE invoice_id = $invoice_id");
+    $sql = mysqli_query($mysqli, "SELECT invoice_prefix, invoice_number, invoice_client_id FROM invoices WHERE invoice_id = $invoice_id");
     $row = mysqli_fetch_array($sql);
     $invoice_prefix = sanitizeInput($row['invoice_prefix']);
     $invoice_number = intval($row['invoice_number']);
     $client_id = intval($row['invoice_client_id']);
 
-    mysqli_query($mysqli,"UPDATE invoices SET invoice_status = 'Non-Billable' WHERE invoice_id = $invoice_id");
+    mysqli_query($mysqli, "UPDATE invoices SET invoice_status = 'Non-Billable' WHERE invoice_id = $invoice_id");
 
-    mysqli_query($mysqli,"INSERT INTO history SET history_status = 'Non-Billable', history_description = 'INVOICE marked Non-Billable', history_invoice_id = $invoice_id");
+    mysqli_query($mysqli, "INSERT INTO history SET history_status = 'Non-Billable', history_description = 'INVOICE marked Non-Billable', history_invoice_id = $invoice_id");
 
     logAction("Invoice", "Edit", "$session_name marked invoice $invoice_prefix$invoice_number Non-Billable", $client_id, $invoice_id);
 
@@ -197,17 +215,25 @@ if (isset($_GET['cancel_invoice'])) {
     $invoice_id = intval($_GET['cancel_invoice']);
 
     // Get Invoice Number and Prefix and Client ID for Logging
-    $sql = mysqli_query($mysqli,"SELECT invoice_prefix, invoice_number, invoice_client_id FROM invoices WHERE invoice_id = $invoice_id");
+    $sql = mysqli_query($mysqli, "SELECT invoice_prefix, invoice_number, invoice_client_id FROM invoices WHERE invoice_id = $invoice_id");
     $row = mysqli_fetch_array($sql);
     $invoice_prefix = sanitizeInput($row['invoice_prefix']);
     $invoice_number = intval($row['invoice_number']);
     $client_id = intval($row['invoice_client_id']);
 
-    mysqli_query($mysqli,"UPDATE invoices SET invoice_status = 'Cancelled' WHERE invoice_id = $invoice_id");
+    mysqli_query($mysqli, "UPDATE invoices SET invoice_status = 'Cancelled' WHERE invoice_id = $invoice_id");
 
-    mysqli_query($mysqli,"INSERT INTO history SET history_status = 'Cancelled', history_description = 'Invoice cancelled', history_invoice_id = $invoice_id");
+    mysqli_query($mysqli, "INSERT INTO history SET history_status = 'Cancelled', history_description = 'Invoice cancelled', history_invoice_id = $invoice_id");
 
     logAction("Invoice", "Edit", "$session_name cancelled invoice $invoice_prefix$invoice_number", $client_id, $invoice_id);
+
+    // Trigger webhook for invoice cancelled
+    triggerWebhook('invoice.cancelled', [
+        'invoice_id' => $invoice_id,
+        'invoice_number' => $invoice_prefix . $invoice_number,
+        'client_id' => $client_id,
+        'cancelled_by' => $session_name
+    ], $client_id);
 
     flash_alert("Invoice <strong>$invoice_prefix$invoice_number</strong> cancelled", 'error');
 
@@ -220,39 +246,47 @@ if (isset($_GET['delete_invoice'])) {
     $invoice_id = intval($_GET['delete_invoice']);
 
     // Get Invoice Number and Prefix and Client ID for Logging
-    $sql = mysqli_query($mysqli,"SELECT invoice_prefix, invoice_number, invoice_client_id FROM invoices WHERE invoice_id = $invoice_id");
+    $sql = mysqli_query($mysqli, "SELECT invoice_prefix, invoice_number, invoice_client_id FROM invoices WHERE invoice_id = $invoice_id");
     $row = mysqli_fetch_array($sql);
     $invoice_prefix = sanitizeInput($row['invoice_prefix']);
     $invoice_number = intval($row['invoice_number']);
     $client_id = intval($row['invoice_client_id']);
 
-    mysqli_query($mysqli,"DELETE FROM invoices WHERE invoice_id = $invoice_id");
+    mysqli_query($mysqli, "DELETE FROM invoices WHERE invoice_id = $invoice_id");
 
     //Delete Items Associated with the Invoice
-    $sql = mysqli_query($mysqli,"SELECT * FROM invoice_items WHERE item_invoice_id = $invoice_id");
-    while($row = mysqli_fetch_array($sql)) {
+    $sql = mysqli_query($mysqli, "SELECT * FROM invoice_items WHERE item_invoice_id = $invoice_id");
+    while ($row = mysqli_fetch_array($sql)) {
         $item_id = intval($row['item_id']);
-        mysqli_query($mysqli,"DELETE FROM invoice_items WHERE item_id = $item_id");
+        mysqli_query($mysqli, "DELETE FROM invoice_items WHERE item_id = $item_id");
     }
 
     //Delete History Associated with the Invoice
-    $sql = mysqli_query($mysqli,"SELECT * FROM history WHERE history_invoice_id = $invoice_id");
-    while($row = mysqli_fetch_array($sql)) {
+    $sql = mysqli_query($mysqli, "SELECT * FROM history WHERE history_invoice_id = $invoice_id");
+    while ($row = mysqli_fetch_array($sql)) {
         $history_id = intval($row['history_id']);
-        mysqli_query($mysqli,"DELETE FROM history WHERE history_id = $history_id");
+        mysqli_query($mysqli, "DELETE FROM history WHERE history_id = $history_id");
     }
 
     //Delete Payments Associated with the Invoice
-    $sql = mysqli_query($mysqli,"SELECT * FROM payments WHERE payment_invoice_id = $invoice_id");
-    while($row = mysqli_fetch_array($sql)) {
+    $sql = mysqli_query($mysqli, "SELECT * FROM payments WHERE payment_invoice_id = $invoice_id");
+    while ($row = mysqli_fetch_array($sql)) {
         $payment_id = intval($row['payment_id']);
-        mysqli_query($mysqli,"DELETE FROM payments WHERE payment_id = $payment_id");
+        mysqli_query($mysqli, "DELETE FROM payments WHERE payment_id = $payment_id");
     }
 
     //unlink tickets from invoice
-    mysqli_query($mysqli,"UPDATE tickets SET ticket_invoice_id = 0 WHERE ticket_invoice_id = $invoice_id");
+    mysqli_query($mysqli, "UPDATE tickets SET ticket_invoice_id = 0 WHERE ticket_invoice_id = $invoice_id");
 
     logAction("Invoice", "Delete", "$session_name deleted invoice $invoice_prefix$invoice_number", $client_id);
+
+    // Trigger webhook for invoice deleted
+    triggerWebhook('invoice.deleted', [
+        'invoice_id' => $invoice_id,
+        'invoice_number' => $invoice_prefix . $invoice_number,
+        'client_id' => $client_id,
+        'deleted_by' => $session_name
+    ], $client_id);
 
     flash_alert("Invoice <strong>$invoice_prefix$invoice_number</strong> deleted", 'error');
 
@@ -277,7 +311,7 @@ if (isset($_POST['add_invoice_item'])) {
 
     // Update Product Inventory
     if ($product_id) {
-         // Only enforce stock for tangible products
+        // Only enforce stock for tangible products
         $product_type = sanitizeInput(getFieldById('products', $product_id, 'product_type'));
         if ($product_type === 'product') {
 
@@ -293,7 +327,7 @@ if (isset($_POST['add_invoice_item'])) {
 
             // Enough in stock?
             if ($available_stock >= $qty) {
-                mysqli_query($mysqli,"INSERT INTO product_stock SET stock_qty = -$qty, stock_note = 'QTY $qty - Invoice $invoice_id', stock_product_id = $product_id");
+                mysqli_query($mysqli, "INSERT INTO product_stock SET stock_qty = -$qty, stock_note = 'QTY $qty - Invoice $invoice_id', stock_product_id = $product_id");
             } else {
                 // Not enough in stock: stop and notify
                 flash_alert("Not Enough <strong>$name</strong> in stock", 'error');
@@ -304,7 +338,7 @@ if (isset($_POST['add_invoice_item'])) {
 
     // Tax
     if ($tax_id > 0) {
-        $sql = mysqli_query($mysqli,"SELECT * FROM taxes WHERE tax_id = $tax_id");
+        $sql = mysqli_query($mysqli, "SELECT * FROM taxes WHERE tax_id = $tax_id");
         $row = mysqli_fetch_array($sql);
         $tax_percent = floatval($row['tax_percent']);
         $tax_amount = $subtotal * $tax_percent / 100;
@@ -314,10 +348,10 @@ if (isset($_POST['add_invoice_item'])) {
 
     $total = $subtotal + $tax_amount;
 
-    mysqli_query($mysqli,"INSERT INTO invoice_items SET item_name = '$name', item_description = '$description', item_quantity = $qty, item_price = $price, item_subtotal = $subtotal, item_tax = $tax_amount, item_total = $total, item_order = $item_order, item_tax_id = $tax_id, item_product_id = $product_id, item_invoice_id = $invoice_id");
+    mysqli_query($mysqli, "INSERT INTO invoice_items SET item_name = '$name', item_description = '$description', item_quantity = $qty, item_price = $price, item_subtotal = $subtotal, item_tax = $tax_amount, item_total = $total, item_order = $item_order, item_tax_id = $tax_id, item_product_id = $product_id, item_invoice_id = $invoice_id");
 
     // Get Discount and Invoice Details
-    $sql = mysqli_query($mysqli,"SELECT * FROM invoices WHERE invoice_id = $invoice_id");
+    $sql = mysqli_query($mysqli, "SELECT * FROM invoices WHERE invoice_id = $invoice_id");
     $row = mysqli_fetch_array($sql);
     $invoice_prefix = sanitizeInput($row['invoice_prefix']);
     $invoice_number = intval($row['invoice_number']);
@@ -325,15 +359,15 @@ if (isset($_POST['add_invoice_item'])) {
     $invoice_discount = floatval($row['invoice_discount_amount']);
 
     //add up all line items
-    $sql = mysqli_query($mysqli,"SELECT * FROM invoice_items WHERE item_invoice_id = $invoice_id");
+    $sql = mysqli_query($mysqli, "SELECT * FROM invoice_items WHERE item_invoice_id = $invoice_id");
     $invoice_total = 0;
-    while($row = mysqli_fetch_array($sql)) {
+    while ($row = mysqli_fetch_array($sql)) {
         $item_total = floatval($row['item_total']);
         $invoice_total = $invoice_total + $item_total;
     }
     $new_invoice_amount = $invoice_total - $invoice_discount;
 
-    mysqli_query($mysqli,"UPDATE invoices SET invoice_amount = $new_invoice_amount WHERE invoice_id = $invoice_id");
+    mysqli_query($mysqli, "UPDATE invoices SET invoice_amount = $new_invoice_amount WHERE invoice_id = $invoice_id");
 
     logAction("Invoice", "Edit", "$session_name added item $name to invoice $invoice_prefix$invoice_number", $client_id, $invoice_id);
 
@@ -351,13 +385,13 @@ if (isset($_POST['invoice_note'])) {
     $note = sanitizeInput($_POST['note']);
 
     // Get Invoice Details for logging
-    $sql = mysqli_query($mysqli,"SELECT * FROM invoices WHERE invoice_id = $invoice_id");
+    $sql = mysqli_query($mysqli, "SELECT * FROM invoices WHERE invoice_id = $invoice_id");
     $row = mysqli_fetch_array($sql);
     $invoice_prefix = sanitizeInput($row['invoice_prefix']);
     $invoice_number = intval($row['invoice_number']);
     $client_id = intval($row['invoice_client_id']);
 
-    mysqli_query($mysqli,"UPDATE invoices SET invoice_note = '$note' WHERE invoice_id = $invoice_id");
+    mysqli_query($mysqli, "UPDATE invoices SET invoice_note = '$note' WHERE invoice_id = $invoice_id");
 
     logAction("Invoice", "Edit", "$session_name added note to invoice $invoice_prefix$invoice_number", $client_id, $invoice_id);
 
@@ -382,7 +416,7 @@ if (isset($_POST['edit_item'])) {
     $subtotal = $price * $qty;
 
     if ($tax_id > 0) {
-        $sql = mysqli_query($mysqli,"SELECT * FROM taxes WHERE tax_id = $tax_id");
+        $sql = mysqli_query($mysqli, "SELECT * FROM taxes WHERE tax_id = $tax_id");
         $row = mysqli_fetch_array($sql);
         $tax_percent = floatval($row['tax_percent']);
         $tax_amount = $subtotal * $tax_percent / 100;
@@ -392,10 +426,10 @@ if (isset($_POST['edit_item'])) {
 
     $total = $subtotal + $tax_amount;
 
-    mysqli_query($mysqli,"UPDATE invoice_items SET item_name = '$name', item_description = '$description', item_quantity = $qty, item_price = $price, item_subtotal = $subtotal, item_tax = $tax_amount, item_total = $total, item_tax_id = $tax_id WHERE item_id = $item_id");
+    mysqli_query($mysqli, "UPDATE invoice_items SET item_name = '$name', item_description = '$description', item_quantity = $qty, item_price = $price, item_subtotal = $subtotal, item_tax = $tax_amount, item_total = $total, item_tax_id = $tax_id WHERE item_id = $item_id");
 
     // Determine what type of line item
-    $sql = mysqli_query($mysqli,"SELECT item_invoice_id, item_quote_id, item_recurring_invoice_id FROM invoice_items WHERE item_id = $item_id");
+    $sql = mysqli_query($mysqli, "SELECT item_invoice_id, item_quote_id, item_recurring_invoice_id FROM invoice_items WHERE item_id = $item_id");
     $row = mysqli_fetch_array($sql);
     $invoice_id = intval($row['item_invoice_id']);
     $quote_id = intval($row['item_quote_id']);
@@ -403,7 +437,7 @@ if (isset($_POST['edit_item'])) {
 
     if ($invoice_id > 0) {
         //Get Discount Amount
-        $sql = mysqli_query($mysqli,"SELECT * FROM invoices WHERE invoice_id = $invoice_id");
+        $sql = mysqli_query($mysqli, "SELECT * FROM invoices WHERE invoice_id = $invoice_id");
         $row = mysqli_fetch_array($sql);
         $invoice_prefix = sanitizeInput($row['invoice_prefix']);
         $invoice_number = intval($row['invoice_number']);
@@ -411,20 +445,20 @@ if (isset($_POST['edit_item'])) {
         $invoice_discount = floatval($row['invoice_discount_amount']);
 
         //Update Invoice Balances by tallying up invoice items
-        $sql_invoice_total = mysqli_query($mysqli,"SELECT SUM(item_total) AS invoice_total FROM invoice_items WHERE item_invoice_id = $invoice_id");
+        $sql_invoice_total = mysqli_query($mysqli, "SELECT SUM(item_total) AS invoice_total FROM invoice_items WHERE item_invoice_id = $invoice_id");
         $row = mysqli_fetch_array($sql_invoice_total);
         $new_invoice_amount = floatval($row['invoice_total']) - $invoice_discount;
 
 
 
 
-        mysqli_query($mysqli,"UPDATE invoices SET invoice_amount = $new_invoice_amount WHERE invoice_id = $invoice_id");
+        mysqli_query($mysqli, "UPDATE invoices SET invoice_amount = $new_invoice_amount WHERE invoice_id = $invoice_id");
 
         logAction("Invoice", "Edit", "$session_name edited item $name on invoice $invoice_prefix$invoice_number", $client_id, $invoice_id);
 
     } elseif ($quote_id > 0) {
         //Get Discount Amount
-        $sql = mysqli_query($mysqli,"SELECT * FROM quotes WHERE quote_id = $quote_id");
+        $sql = mysqli_query($mysqli, "SELECT * FROM quotes WHERE quote_id = $quote_id");
         $row = mysqli_fetch_array($sql);
         $quote_prefix = sanitizeInput($row['quote_prefix']);
         $quote_number = intval($row['quote_number']);
@@ -432,17 +466,17 @@ if (isset($_POST['edit_item'])) {
         $quote_discount = floatval($row['quote_discount_amount']);
 
         //Update Quote Balances by tallying up items
-        $sql_quote_total = mysqli_query($mysqli,"SELECT SUM(item_total) AS quote_total FROM invoice_items WHERE item_quote_id = $quote_id");
+        $sql_quote_total = mysqli_query($mysqli, "SELECT SUM(item_total) AS quote_total FROM invoice_items WHERE item_quote_id = $quote_id");
         $row = mysqli_fetch_array($sql_quote_total);
         $new_quote_amount = floatval($row['quote_total']) - $quote_discount;
 
-        mysqli_query($mysqli,"UPDATE quotes SET quote_amount = $new_quote_amount WHERE quote_id = $quote_id");
+        mysqli_query($mysqli, "UPDATE quotes SET quote_amount = $new_quote_amount WHERE quote_id = $quote_id");
 
         logAction("Quote", "Edit", "$session_name edited item $name on quote $quote_prefix$quote_number", $client_id, $quote_id);
 
     } else {
         //Get Discount Amount
-        $sql = mysqli_query($mysqli,"SELECT * FROM recurring_invoices WHERE recurring_invoice_id = $recurring_invoice_id");
+        $sql = mysqli_query($mysqli, "SELECT * FROM recurring_invoices WHERE recurring_invoice_id = $recurring_invoice_id");
         $row = mysqli_fetch_array($sql);
         $recurring_invoice_prefix = sanitizeInput($row['recurring_invoice_prefix']);
         $recurring_invoice_number = intval($row['recurring_invoice_number']);
@@ -450,11 +484,11 @@ if (isset($_POST['edit_item'])) {
         $recurring_invoice_discount = floatval($row['recurring_invoice_discount_amount']);
 
         //Update Invoice Balances by tallying up invoice items
-        $sql_recurring_invoice_total = mysqli_query($mysqli,"SELECT SUM(item_total) AS recurring_invoice_total FROM invoice_items WHERE item_recurring_invoice_id = $recurring_invoice_id");
+        $sql_recurring_invoice_total = mysqli_query($mysqli, "SELECT SUM(item_total) AS recurring_invoice_total FROM invoice_items WHERE item_recurring_invoice_id = $recurring_invoice_id");
         $row = mysqli_fetch_array($sql_recurring_invoice_total);
         $new_recurring_invoice_amount = floatval($row['recurring_invoice_total']) - $recurring_invoice_discount;
 
-        mysqli_query($mysqli,"UPDATE recurring_invoices SET recurring_invoice_amount = $new_recurring_invoice_amount WHERE recurring_invoice_id = $recurring_invoice_id");
+        mysqli_query($mysqli, "UPDATE recurring_invoices SET recurring_invoice_amount = $new_recurring_invoice_amount WHERE recurring_invoice_id = $recurring_invoice_id");
 
         // Logging
         logAction("Recurring Invoice", "Edit", "$session_name edited item $name on recurring invoice $recurring_invoice_prefix$recurring_invoice_number", $client_id, $recurring_invoice_id);
@@ -473,7 +507,7 @@ if (isset($_GET['delete_invoice_item'])) {
 
     $item_id = intval($_GET['delete_invoice_item']);
 
-    $sql = mysqli_query($mysqli,"SELECT * FROM invoice_items WHERE item_id = $item_id");
+    $sql = mysqli_query($mysqli, "SELECT * FROM invoice_items WHERE item_id = $item_id");
     $row = mysqli_fetch_array($sql);
     $invoice_id = intval($row['item_invoice_id']);
     $item_name = sanitizeInput($row['item_name']);
@@ -483,7 +517,7 @@ if (isset($_GET['delete_invoice_item'])) {
     $item_tax = floatval($row['item_tax']);
     $item_total = floatval($row['item_total']);
 
-    $sql = mysqli_query($mysqli,"SELECT * FROM invoices WHERE invoice_id = $invoice_id");
+    $sql = mysqli_query($mysqli, "SELECT * FROM invoices WHERE invoice_id = $invoice_id");
     $row = mysqli_fetch_array($sql);
     $invoice_prefix = sanitizeInput($row['invoice_prefix']);
     $invoice_number = intval($row['invoice_number']);
@@ -491,13 +525,13 @@ if (isset($_GET['delete_invoice_item'])) {
 
     $new_invoice_amount = floatval($row['invoice_amount']) - $item_total;
 
-    mysqli_query($mysqli,"UPDATE invoices SET invoice_amount = $new_invoice_amount WHERE invoice_id = $invoice_id");
+    mysqli_query($mysqli, "UPDATE invoices SET invoice_amount = $new_invoice_amount WHERE invoice_id = $invoice_id");
 
-    mysqli_query($mysqli,"DELETE FROM invoice_items WHERE item_id = $item_id");
+    mysqli_query($mysqli, "DELETE FROM invoice_items WHERE item_id = $item_id");
 
     // Return Product Inventory
     if ($item_product_id) {
-        mysqli_query($mysqli,"INSERT INTO product_stock SET stock_qty = $item_quantity, stock_note = 'Returned QTY $item_quantity back to stock from Invoice $invoice_id', stock_product_id = $item_product_id");
+        mysqli_query($mysqli, "INSERT INTO product_stock SET stock_qty = $item_quantity, stock_note = 'Returned QTY $item_quantity back to stock from Invoice $invoice_id', stock_product_id = $item_product_id");
     }
 
     logAction("Invoice", "Delete", "$session_name removed item $item_name from invoice $invoice_prefix$invoice_number", $client_id, $invoice_id);
@@ -512,7 +546,9 @@ if (isset($_GET['email_invoice'])) {
 
     $invoice_id = intval($_GET['email_invoice']);
 
-    $sql = mysqli_query($mysqli,"SELECT * FROM invoices
+    $sql = mysqli_query(
+        $mysqli,
+        "SELECT * FROM invoices
         LEFT JOIN clients ON invoice_client_id = client_id
         LEFT JOIN contacts ON clients.client_id = contacts.contact_client_id AND contact_primary = 1
         WHERE invoice_id = $invoice_id"
@@ -534,7 +570,7 @@ if (isset($_GET['email_invoice'])) {
     $contact_name = sanitizeInput($row['contact_name']);
     $contact_email = sanitizeInput($row['contact_email']);
 
-    $sql = mysqli_query($mysqli,"SELECT * FROM companies WHERE company_id = 1");
+    $sql = mysqli_query($mysqli, "SELECT * FROM companies WHERE company_id = 1");
     $row = mysqli_fetch_array($sql);
 
     $company_name = sanitizeInput($row['company_name']);
@@ -552,10 +588,10 @@ if (isset($_GET['email_invoice'])) {
     $config_invoice_from_name = sanitizeInput($config_invoice_from_name);
     $config_invoice_from_email = sanitizeInput($config_invoice_from_email);
 
-    $sql_payments = mysqli_query($mysqli,"SELECT * FROM payments, accounts WHERE payment_account_id = account_id AND payment_invoice_id = $invoice_id ORDER BY payment_id DESC");
+    $sql_payments = mysqli_query($mysqli, "SELECT * FROM payments, accounts WHERE payment_account_id = account_id AND payment_invoice_id = $invoice_id ORDER BY payment_id DESC");
 
     // Add up all the payments for the invoice and get the total amount paid to the invoice
-    $sql_amount_paid = mysqli_query($mysqli,"SELECT SUM(payment_amount) AS amount_paid FROM payments WHERE payment_invoice_id = $invoice_id");
+    $sql_amount_paid = mysqli_query($mysqli, "SELECT SUM(payment_amount) AS amount_paid FROM payments WHERE payment_invoice_id = $invoice_id");
     $row = mysqli_fetch_array($sql_amount_paid);
     $amount_paid = floatval($row['amount_paid']);
 
@@ -588,14 +624,16 @@ if (isset($_GET['email_invoice'])) {
 
     flash_alert("Invoice sent!");
 
-    mysqli_query($mysqli,"INSERT INTO history SET history_status = 'Sent', history_description = 'Invoice sent to the mail queue ID: $email_id', history_invoice_id = $invoice_id");
+    mysqli_query($mysqli, "INSERT INTO history SET history_status = 'Sent', history_description = 'Invoice sent to the mail queue ID: $email_id', history_invoice_id = $invoice_id");
 
     // Don't change the status to sent if the status is anything but draft
     if ($invoice_status == 'Draft') {
-        mysqli_query($mysqli,"UPDATE invoices SET invoice_status = 'Sent' WHERE invoice_id = $invoice_id");
+        mysqli_query($mysqli, "UPDATE invoices SET invoice_status = 'Sent' WHERE invoice_id = $invoice_id");
     }
 
     logAction("Invoice", "Email", "$session_name Emailed $contact_email Invoice $invoice_prefix$invoice_number Email queued to Email ID: $email_id", $client_id, $invoice_id);
+
+    triggerWebhook('invoice.sent', ['invoice_id' => $invoice_id, 'client_id' => $client_id, 'invoice_number' => $invoice_prefix . $invoice_number], $client_id);
 
     // Send copies of the invoice to any additional billing contacts
     $sql_billing_contacts = mysqli_query(
@@ -654,19 +692,19 @@ if (isset($_POST['export_invoices_csv'])) {
     if (!empty($date_from) && !empty($date_to)) {
         $date_query = "DATE(invoice_date) BETWEEN '$date_from' AND '$date_to'";
         $file_name_date = "$date_from-to-$date_to";
-    }else{
+    } else {
         $date_query = "";
         $file_name_date = date('Y-m-d_H-i-s');
     }
 
-    $sql = mysqli_query($mysqli,"SELECT * FROM invoices LEFT JOIN clients ON invoice_client_id = client_id WHERE $date_query $client_query ORDER BY invoice_number ASC");
+    $sql = mysqli_query($mysqli, "SELECT * FROM invoices LEFT JOIN clients ON invoice_client_id = client_id WHERE $date_query $client_query ORDER BY invoice_number ASC");
 
     $num_rows = mysqli_num_rows($sql);
 
     if ($num_rows > 0) {
         $delimiter = ",";
         $enclosure = '"';
-        $escape    = '\\';   // backslash
+        $escape = '\\';   // backslash
         $filename = sanitize_filename($file_name_prepend . "Invoices-$file_name_date.csv");
 
         //create a file pointer
@@ -677,7 +715,7 @@ if (isset($_POST['export_invoices_csv'])) {
         fputcsv($f, $fields, $delimiter, $enclosure, $escape);
 
         //output each row of the data, format line as csv and write to file pointer
-        while($row = $sql->fetch_assoc()) {
+        while ($row = $sql->fetch_assoc()) {
             $lineData = array($row['invoice_prefix'] . $row['invoice_number'], $row['invoice_scope'], $row['invoice_amount'], $row['invoice_date'], $row['invoice_due'], $row['invoice_status'], $row['client_name']);
             fputcsv($f, $lineData, $delimiter, $enclosure, $escape);
         }
@@ -704,7 +742,7 @@ if (isset($_POST['link_invoice_to_ticket'])) {
     $invoice_id = intval($_POST['invoice_id']);
     $ticket_id = intval($_POST['ticket_id']);
 
-    mysqli_query($mysqli,"UPDATE invoices SET invoice_ticket_id = $ticket_id WHERE invoice_id = $invoice_id");
+    mysqli_query($mysqli, "UPDATE invoices SET invoice_ticket_id = $ticket_id WHERE invoice_id = $invoice_id");
 
     flash_alert("Invoice linked to ticket");
 
@@ -717,7 +755,7 @@ if (isset($_POST['add_ticket_to_invoice'])) {
     $invoice_id = intval($_POST['invoice_id']);
     $ticket_id = intval($_POST['ticket_id']);
 
-    mysqli_query($mysqli,"UPDATE tickets SET ticket_invoice_id = $invoice_id WHERE ticket_id = $ticket_id");
+    mysqli_query($mysqli, "UPDATE tickets SET ticket_invoice_id = $invoice_id WHERE ticket_id = $ticket_id");
 
     flash_alert("Ticket linked to invoice");
 
@@ -961,18 +999,18 @@ if (isset($_POST['bulk_edit_invoice_category'])) {
         // Get Selected Count
         $count = count($_POST['invoice_ids']);
 
-        foreach($_POST['invoice_ids'] as $invoice_id) {
+        foreach ($_POST['invoice_ids'] as $invoice_id) {
             $invoice_id = intval($invoice_id);
 
             // Get Invoice Details for Logging
-            $sql = mysqli_query($mysqli,"SELECT * FROM invoices WHERE invoice_id = $invoice_id");
+            $sql = mysqli_query($mysqli, "SELECT * FROM invoices WHERE invoice_id = $invoice_id");
             $row = mysqli_fetch_array($sql);
             $invoice_prefix = sanitizeInput($row['invoice_prefix']);
             $invoice_number = intval($row['invoice_number']);
             $invoice_scope = sanitizeInput($row['invoice_scope']);
             $client_id = intval($row['invoice_client_id']);
 
-            mysqli_query($mysqli,"UPDATE invoices SET invoice_category_id = $category_id WHERE invoice_id = $invoice_id");
+            mysqli_query($mysqli, "UPDATE invoices SET invoice_category_id = $category_id WHERE invoice_id = $invoice_id");
 
             logAction("Invoice", "Edit", "$session_name assigned Invoice $invoice_prefix$invoice_number to category $category_name", $client_id, $invoice_id);
 

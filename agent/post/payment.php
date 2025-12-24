@@ -6,6 +6,8 @@
 
 defined('FROM_POST_HANDLER') || die("Direct file access is not allowed");
 
+require_once dirname(__FILE__) . '/../../includes/webhook_functions.php';
+
 if (isset($_POST['add_payment'])) {
 
     enforceUserPermission('module_sales', 2);
@@ -26,18 +28,20 @@ if (isset($_POST['add_payment'])) {
         flash_alert("Payment can not be more than the balance", 'error');
         redirect();
     } else {
-        mysqli_query($mysqli,"INSERT INTO payments SET payment_date = '$date', payment_amount = $amount, payment_currency_code = '$currency_code', payment_account_id = $account, payment_method = '$payment_method', payment_reference = '$reference', payment_invoice_id = $invoice_id");
+        mysqli_query($mysqli, "INSERT INTO payments SET payment_date = '$date', payment_amount = $amount, payment_currency_code = '$currency_code', payment_account_id = $account, payment_method = '$payment_method', payment_reference = '$reference', payment_invoice_id = $invoice_id");
 
         // Get Payment ID for reference
         $payment_id = mysqli_insert_id($mysqli);
 
         //Add up all the payments for the invoice and get the total amount paid to the invoice
-        $sql_total_payments_amount = mysqli_query($mysqli,"SELECT SUM(payment_amount) AS payments_amount FROM payments WHERE payment_invoice_id = $invoice_id");
+        $sql_total_payments_amount = mysqli_query($mysqli, "SELECT SUM(payment_amount) AS payments_amount FROM payments WHERE payment_invoice_id = $invoice_id");
         $row = mysqli_fetch_array($sql_total_payments_amount);
         $total_payments_amount = floatval($row['payments_amount']);
 
         //Get the invoice total
-        $sql = mysqli_query($mysqli,"SELECT * FROM invoices
+        $sql = mysqli_query(
+            $mysqli,
+            "SELECT * FROM invoices
             LEFT JOIN clients ON invoice_client_id = client_id
             LEFT JOIN contacts ON clients.client_id = contacts.contact_client_id AND contact_primary = 1
             WHERE invoice_id = $invoice_id"
@@ -54,10 +58,10 @@ if (isset($_POST['add_payment'])) {
         $contact_name = sanitizeInput($row['contact_name']);
         $contact_email = sanitizeInput($row['contact_email']);
         $contact_phone = sanitizeInput(formatPhoneNumber($row['contact_phone'], $row['contact_phone_country_code']));
-        $contact_extension = preg_replace("/[^0-9]/", '',$row['contact_extension']);
+        $contact_extension = preg_replace("/[^0-9]/", '', $row['contact_extension']);
         $contact_mobile = sanitizeInput(formatPhoneNumber($row['contact_mobile'], $row['contact_mobile_country_code']));
 
-        $sql = mysqli_query($mysqli,"SELECT * FROM companies WHERE company_id = 1");
+        $sql = mysqli_query($mysqli, "SELECT * FROM companies WHERE company_id = 1");
         $row = mysqli_fetch_array($sql);
 
         $company_name = sanitizeInput($row['company_name']);
@@ -111,7 +115,7 @@ if (isset($_POST['add_payment'])) {
                 $email_id = mysqli_insert_id($mysqli);
 
                 // Email Logging
-                mysqli_query($mysqli,"INSERT INTO history SET history_status = 'Sent', history_description = 'Payment Receipt sent to mail queue ID: $email_id!', history_invoice_id = $invoice_id");
+                mysqli_query($mysqli, "INSERT INTO history SET history_status = 'Sent', history_description = 'Payment Receipt sent to mail queue ID: $email_id!', history_invoice_id = $invoice_id");
                 logAction("Invoice", "Payment", "Payment receipt for invoice $invoice_prefix$invoice_number queued to $contact_email Email ID: $email_id", $client_id, $invoice_id);
 
             }
@@ -146,7 +150,7 @@ if (isset($_POST['add_payment'])) {
                 $email_id = mysqli_insert_id($mysqli);
 
                 // Email Logging
-                mysqli_query($mysqli,"INSERT INTO history SET history_status = 'Sent', history_description = 'Payment Receipt sent to mail queue ID: $email_id!', history_invoice_id = $invoice_id");
+                mysqli_query($mysqli, "INSERT INTO history SET history_status = 'Sent', history_description = 'Payment Receipt sent to mail queue ID: $email_id!', history_invoice_id = $invoice_id");
                 logAction("Invoice", "Payment", "Payment receipt for invoice $invoice_prefix$invoice_number queued to $contact_email Email ID: $email_id", $client_id, $invoice_id);
 
             }
@@ -154,12 +158,17 @@ if (isset($_POST['add_payment'])) {
         }
 
         //Update Invoice Status
-        mysqli_query($mysqli,"UPDATE invoices SET invoice_status = '$invoice_status' WHERE invoice_id = $invoice_id");
+        mysqli_query($mysqli, "UPDATE invoices SET invoice_status = '$invoice_status' WHERE invoice_id = $invoice_id");
 
         //Add Payment to History
-        mysqli_query($mysqli,"INSERT INTO history SET history_status = '$invoice_status', history_description = 'Payment added', history_invoice_id = $invoice_id");
+        mysqli_query($mysqli, "INSERT INTO history SET history_status = '$invoice_status', history_description = 'Payment added', history_invoice_id = $invoice_id");
 
         logAction("Invoice", "Payment", "Payment amount of " . numfmt_format_currency($currency_format, $amount, $invoice_currency_code) . " added to invoice $invoice_prefix$invoice_number", $client_id, $invoice_id);
+
+        triggerWebhook('payment.received', ['payment_id' => $payment_id, 'invoice_id' => $invoice_id, 'amount' => $amount, 'currency' => $invoice_currency_code], $client_id);
+        if ($invoice_status == 'Paid') {
+            triggerWebhook('invoice.paid', ['invoice_id' => $invoice_id, 'client_id' => $client_id, 'invoice_number' => $invoice_prefix . $invoice_number], $client_id);
+        }
 
         customAction('invoice_pay', $invoice_id);
 
@@ -291,7 +300,9 @@ if (isset($_POST['add_payment_stripe'])) {
     $saved_payment_id = intval($_POST['saved_payment_id']);
 
     // Get invoice details
-    $sql = mysqli_query($mysqli,"SELECT * FROM invoices
+    $sql = mysqli_query(
+        $mysqli,
+        "SELECT * FROM invoices
             LEFT JOIN clients ON invoice_client_id = client_id
             LEFT JOIN contacts ON client_id = contact_client_id AND contact_primary = 1
             WHERE invoice_id = $invoice_id"
@@ -309,11 +320,11 @@ if (isset($_POST['add_payment_stripe'])) {
     $contact_name = sanitizeInput($row['contact_name']);
     $contact_email = sanitizeInput($row['contact_email']);
     $contact_phone = sanitizeInput(formatPhoneNumber($row['contact_phone'], $row['contact_phone_country_code']));
-    $contact_extension = preg_replace("/[^0-9]/", '',$row['contact_extension']);
+    $contact_extension = preg_replace("/[^0-9]/", '', $row['contact_extension']);
     $contact_mobile = sanitizeInput(formatPhoneNumber($row['contact_mobile'], $row['contact_mobile_country_code']));
 
     // Get ITFlow company details
-    $sql = mysqli_query($mysqli,"SELECT * FROM companies WHERE company_id = 1");
+    $sql = mysqli_query($mysqli, "SELECT * FROM companies WHERE company_id = 1");
     $row = mysqli_fetch_array($sql);
     $company_name = sanitizeInput($row['company_name']);
     $company_country = sanitizeInput($row['company_country']);
@@ -439,7 +450,7 @@ if (isset($_POST['add_payment_stripe'])) {
 
             // Email Logging
             $email_id = mysqli_insert_id($mysqli);
-            mysqli_query($mysqli,"INSERT INTO history SET history_status = 'Sent', history_description = 'Payment Receipt sent to mail queue ID: $email_id!', history_invoice_id = $invoice_id");
+            mysqli_query($mysqli, "INSERT INTO history SET history_status = 'Sent', history_description = 'Payment Receipt sent to mail queue ID: $email_id!', history_invoice_id = $invoice_id");
             logAction("Invoice", "Payment", "Payment receipt for invoice $invoice_prefix$invoice_number queued to $contact_email Email ID: $email_id", $client_id, $invoice_id);
         }
 
@@ -452,12 +463,18 @@ if (isset($_POST['add_payment_stripe'])) {
         // Create Stripe payment gateway fee as an expense (if configured)
         if ($expense_vendor_id > 0 && $expense_category_id > 0) {
             $gateway_fee = round($invoice_amount * $expense_percentage_fee + $expense_flat_fee, 2);
-            mysqli_query($mysqli,"INSERT INTO expenses SET expense_date = '$pi_date', expense_amount = $gateway_fee, expense_currency_code = '$invoice_currency_code', expense_account_id = $account_id, expense_vendor_id = $expense_vendor_id, expense_client_id = $client_id, expense_category_id = $expense_category_id, expense_description = 'Stripe Transaction for Invoice $invoice_prefix$invoice_number In the Amount of $balance_to_pay', expense_reference = 'Stripe - $pi_id $extended_log_desc'");
+            mysqli_query($mysqli, "INSERT INTO expenses SET expense_date = '$pi_date', expense_amount = $gateway_fee, expense_currency_code = '$invoice_currency_code', expense_account_id = $account_id, expense_vendor_id = $expense_vendor_id, expense_client_id = $client_id, expense_category_id = $expense_category_id, expense_description = 'Stripe Transaction for Invoice $invoice_prefix$invoice_number In the Amount of $balance_to_pay', expense_reference = 'Stripe - $pi_id $extended_log_desc'");
         }
 
         // Notify/log
         appNotify("Invoice Paid", "Invoice $invoice_prefix$invoice_number automatically paid", "/agent/invoice.php?invoice_id=$invoice_id", $client_id);
         logAction("Invoice", "Payment", "$session_name initiated Stripe payment amount of " . numfmt_format_currency($currency_format, $invoice_amount, $invoice_currency_code) . " added to invoice $invoice_prefix$invoice_number - $pi_id $extended_log_desc", $client_id, $invoice_id);
+
+        // Get the payment ID for the webhook
+        $payment_id = mysqli_insert_id($mysqli);
+
+        triggerWebhook('payment.received', ['payment_id' => $payment_id, 'invoice_id' => $invoice_id, 'amount' => $pi_amount_paid, 'currency' => $pi_currency], $client_id);
+        triggerWebhook('invoice.paid', ['invoice_id' => $invoice_id, 'client_id' => $client_id, 'invoice_number' => $invoice_prefix . $invoice_number], $client_id);
         customAction('invoice_pay', $invoice_id);
 
         flash_alert("Payment amount <strong>" . numfmt_format_currency($currency_format, $invoice_amount, $invoice_currency_code) . "</strong> added");
@@ -748,7 +765,9 @@ if (isset($_POST['add_bulk_payment'])) {
     if ($email_receipt == 1) {
 
         // Get Client / Contact Info
-        $sql_client = mysqli_query($mysqli,"SELECT * FROM clients
+        $sql_client = mysqli_query(
+            $mysqli,
+            "SELECT * FROM clients
             LEFT JOIN contacts ON clients.client_id = contacts.contact_client_id
             AND contact_primary = 1
             WHERE client_id = $client_id"
@@ -759,7 +778,7 @@ if (isset($_POST['add_bulk_payment'])) {
         $contact_name = sanitizeInput($row['contact_name']);
         $contact_email = sanitizeInput($row['contact_email']);
 
-        $sql_company = mysqli_query($mysqli,"SELECT company_name, company_phone, company_phone_country_code FROM companies WHERE company_id = 1");
+        $sql_company = mysqli_query($mysqli, "SELECT company_name, company_phone, company_phone_country_code FROM companies WHERE company_id = 1");
         $row = mysqli_fetch_array($sql_company);
 
         $company_name = sanitizeInput($row['company_name']);
@@ -800,18 +819,18 @@ if (isset($_GET['delete_payment'])) {
 
     $payment_id = intval($_GET['delete_payment']);
 
-    $sql = mysqli_query($mysqli,"SELECT * FROM payments WHERE payment_id = $payment_id");
+    $sql = mysqli_query($mysqli, "SELECT * FROM payments WHERE payment_id = $payment_id");
     $row = mysqli_fetch_array($sql);
     $invoice_id = intval($row['payment_invoice_id']);
     $deleted_payment_amount = floatval($row['payment_amount']);
 
     //Add up all the payments for the invoice and get the total amount paid to the invoice
-    $sql_total_payments_amount = mysqli_query($mysqli,"SELECT SUM(payment_amount) AS total_payments_amount FROM payments WHERE payment_invoice_id = $invoice_id");
+    $sql_total_payments_amount = mysqli_query($mysqli, "SELECT SUM(payment_amount) AS total_payments_amount FROM payments WHERE payment_invoice_id = $invoice_id");
     $row = mysqli_fetch_array($sql_total_payments_amount);
     $total_payments_amount = floatval($row['total_payments_amount']);
 
     // Get the invoice total and details
-    $sql = mysqli_query($mysqli,"SELECT * FROM invoices WHERE invoice_id = $invoice_id");
+    $sql = mysqli_query($mysqli, "SELECT * FROM invoices WHERE invoice_id = $invoice_id");
     $row = mysqli_fetch_array($sql);
     $invoice_prefix = sanitizeInput($row['invoice_prefix']);
     $invoice_number = intval($row['invoice_number']);
@@ -829,18 +848,28 @@ if (isset($_GET['delete_payment'])) {
     }
 
     //Update Invoice Status
-    mysqli_query($mysqli,"UPDATE invoices SET invoice_status = '$invoice_status' WHERE invoice_id = $invoice_id");
+    mysqli_query($mysqli, "UPDATE invoices SET invoice_status = '$invoice_status' WHERE invoice_id = $invoice_id");
 
     //Add Payment to History
-    mysqli_query($mysqli,"INSERT INTO history SET history_status = '$invoice_status', history_description = 'Payment deleted', history_invoice_id = $invoice_id");
+    mysqli_query($mysqli, "INSERT INTO history SET history_status = '$invoice_status', history_description = 'Payment deleted', history_invoice_id = $invoice_id");
 
-    mysqli_query($mysqli,"DELETE FROM payments WHERE payment_id = $payment_id");
+    mysqli_query($mysqli, "DELETE FROM payments WHERE payment_id = $payment_id");
 
     logAction("Invoice", "Edit", "$session_name deleted Payment on Invoice $invoice_prefix$invoice_number", $client_id, $invoice_id);
 
+    // Trigger webhook for payment deleted
+    triggerWebhook('payment.deleted', [
+        'payment_id' => $payment_id,
+        'invoice_id' => $invoice_id,
+        'invoice_number' => $invoice_prefix . $invoice_number,
+        'amount' => $deleted_payment_amount,
+        'client_id' => $client_id,
+        'deleted_by' => $session_name
+    ], $client_id);
+
     flash_alert("Payment deleted", 'error');
     if ($config_stripe_enable) {
-       flash_alert("Payment deleted - Stripe payments must be manually refunded in Stripe", 'error');
+        flash_alert("Payment deleted - Stripe payments must be manually refunded in Stripe", 'error');
     }
 
     redirect();
@@ -860,14 +889,14 @@ if (isset($_POST['export_payments_csv'])) {
         $file_name_prepend = "$session_company_name-";
     }
 
-    $sql = mysqli_query($mysqli,"SELECT * FROM payments, invoices WHERE payment_invoice_id = invoice_id $client_query ORDER BY payment_date ASC");
+    $sql = mysqli_query($mysqli, "SELECT * FROM payments, invoices WHERE payment_invoice_id = invoice_id $client_query ORDER BY payment_date ASC");
 
     $num_rows = mysqli_num_rows($sql);
 
     if ($num_rows > 0) {
         $delimiter = ",";
         $enclosure = '"';
-        $escape    = '\\';   // backslash
+        $escape = '\\';   // backslash
         $filename = sanitize_filename($file_name_prepend . "Payments-" . date('Y-m-d_H-i-s') . ".csv");
 
         //create a file pointer
@@ -878,7 +907,7 @@ if (isset($_POST['export_payments_csv'])) {
         fputcsv($f, $fields, $delimiter, $enclosure, $escape);
 
         //output each row of the data, format line as csv and write to file pointer
-        while($row = $sql->fetch_assoc()){
+        while ($row = $sql->fetch_assoc()) {
             $lineData = array($row['payment_date'], $row['invoice_date'], $row['invoice_prefix'] . $row['invoice_number'], $row['invoice_amount'], $row['payment_amount'], $row['payment_method'], $row['payment_reference']);
             fputcsv($f, $lineData, $delimiter, $enclosure, $escape);
         }

@@ -103,6 +103,19 @@ if ($quote_status == 'Sent') {
     mysqli_query($mysqli, "UPDATE quotes SET quote_status = 'Viewed' WHERE quote_id = $quote_id");
 }
 
+// Trigger webhook for quote viewed
+if (file_exists($_SERVER['DOCUMENT_ROOT'] . '/includes/webhook_functions.php')) {
+    require_once $_SERVER['DOCUMENT_ROOT'] . '/includes/webhook_functions.php';
+    triggerWebhook('quote.viewed', [
+        'quote_id' => $quote_id,
+        'quote_number' => $quote_prefix . $quote_number,
+        'client_id' => $client_id,
+        'ip' => $ip,
+        'os' => $os,
+        'browser' => $browser
+    ], $client_id);
+}
+
 //Mark viewed in history
 mysqli_query($mysqli, "INSERT INTO history SET history_status = '$quote_status', history_description = 'Quote viewed - $ip - $os - $browser', history_quote_id = $quote_id");
 

@@ -6,6 +6,9 @@
 
 defined('FROM_POST_HANDLER') || die("Direct file access is not allowed");
 
+// Webhook functions
+require_once dirname(__FILE__) . "/../../includes/webhook_functions.php";
+
 if (isset($_POST['add_software_from_template'])) {
 
     enforceUserPermission('module_support', 2);
@@ -15,7 +18,7 @@ if (isset($_POST['add_software_from_template'])) {
     $software_template_id = intval($_POST['software_template_id']);
 
     // GET Software Template Info
-    $sql_software_templates = mysqli_query($mysqli,"SELECT * FROM software_templates WHERE software_template_id = $software_template_id");
+    $sql_software_templates = mysqli_query($mysqli, "SELECT * FROM software_templates WHERE software_template_id = $software_template_id");
     $row = mysqli_fetch_array($sql_software_templates);
     $name = sanitizeInput($row['software_template_name']);
     $version = sanitizeInput($row['software_template_version']);
@@ -26,11 +29,18 @@ if (isset($_POST['add_software_from_template'])) {
     $vendor = sanitizeInput($_POST['vendor'] ?? 0);
 
     // Software add query
-    mysqli_query($mysqli,"INSERT INTO software SET software_name = '$name', software_version = '$version', software_description = '$description', software_type = '$type', software_license_type = '$license_type', software_notes = '$notes', software_vendor_id = $vendor, software_client_id = $client_id");
+    mysqli_query($mysqli, "INSERT INTO software SET software_name = '$name', software_version = '$version', software_description = '$description', software_type = '$type', software_license_type = '$license_type', software_notes = '$notes', software_vendor_id = $vendor, software_client_id = $client_id");
 
     $software_id = mysqli_insert_id($mysqli);
 
     logAction("Software", "Create", "$session_name created software $name using template", $client_id, $software_id);
+
+    triggerWebhook('software.created', [
+        'software_id' => $software_id,
+        'software_name' => $name,
+        'client_id' => $client_id,
+        'created_by' => $session_name
+    ], $client_id);
 
     flash_alert("Software <strong>$name</strong> created from template");
 
@@ -67,7 +77,7 @@ if (isset($_POST['add_software'])) {
     $notes = sanitizeInput($_POST['notes']);
     $vendor = intval($_POST['vendor'] ?? 0);
 
-    mysqli_query($mysqli,"INSERT INTO software SET software_name = '$name', software_version = '$version', software_description = '$description', software_type = '$type', software_key = '$key', software_license_type = '$license_type', software_seats = $seats, software_purchase_reference = '$purchase_reference', software_purchase = $purchase, software_expire = $expire, software_notes = '$notes', software_vendor_id = $vendor, software_client_id = $client_id");
+    mysqli_query($mysqli, "INSERT INTO software SET software_name = '$name', software_version = '$version', software_description = '$description', software_type = '$type', software_key = '$key', software_license_type = '$license_type', software_seats = $seats, software_purchase_reference = '$purchase_reference', software_purchase = $purchase, software_expire = $expire, software_notes = '$notes', software_vendor_id = $vendor, software_client_id = $client_id");
 
     $software_id = mysqli_insert_id($mysqli);
 
@@ -75,21 +85,28 @@ if (isset($_POST['add_software'])) {
 
     // Add Asset Licenses
     if (isset($_POST['assets'])) {
-        foreach($_POST['assets'] as $asset) {
+        foreach ($_POST['assets'] as $asset) {
             $asset_id = intval($asset);
-            mysqli_query($mysqli,"INSERT INTO software_assets SET software_id = $software_id, asset_id = $asset_id");
+            mysqli_query($mysqli, "INSERT INTO software_assets SET software_id = $software_id, asset_id = $asset_id");
         }
     }
 
     // Add Contact Licenses
     if (isset($_POST['contacts'])) {
-        foreach($_POST['contacts'] as $contact) {
+        foreach ($_POST['contacts'] as $contact) {
             $contact = intval($contact);
-            mysqli_query($mysqli,"INSERT INTO software_contacts SET software_id = $software_id, contact_id = $contact");
+            mysqli_query($mysqli, "INSERT INTO software_contacts SET software_id = $software_id, contact_id = $contact");
         }
     }
 
     logAction("Software", "Create", "$session_name created software $name", $client_id, $software_id);
+
+    triggerWebhook('software.created', [
+        'software_id' => $software_id,
+        'software_name' => $name,
+        'client_id' => $client_id,
+        'created_by' => $session_name
+    ], $client_id);
 
     flash_alert("Software <strong>$name</strong> created $alert_extended");
 
@@ -127,28 +144,35 @@ if (isset($_POST['edit_software'])) {
     $notes = sanitizeInput($_POST['notes']);
     $vendor = intval($_POST['vendor'] ?? 0);
 
-    mysqli_query($mysqli,"UPDATE software SET software_name = '$name', software_version = '$version', software_description = '$description', software_type = '$type', software_key = '$key', software_license_type = '$license_type', software_seats = $seats, software_purchase_reference = '$purchase_reference', software_purchase = $purchase, software_expire = $expire, software_notes = '$notes', software_vendor_id = $vendor WHERE software_id = $software_id");
+    mysqli_query($mysqli, "UPDATE software SET software_name = '$name', software_version = '$version', software_description = '$description', software_type = '$type', software_key = '$key', software_license_type = '$license_type', software_seats = $seats, software_purchase_reference = '$purchase_reference', software_purchase = $purchase, software_expire = $expire, software_notes = '$notes', software_vendor_id = $vendor WHERE software_id = $software_id");
 
 
     // Update Asset Licenses
-    mysqli_query($mysqli,"DELETE FROM software_assets WHERE software_id = $software_id");
+    mysqli_query($mysqli, "DELETE FROM software_assets WHERE software_id = $software_id");
     if (isset($_POST['assets'])) {
-        foreach($_POST['assets'] as $asset) {
+        foreach ($_POST['assets'] as $asset) {
             $asset = intval($asset);
-            mysqli_query($mysqli,"INSERT INTO software_assets SET software_id = $software_id, asset_id = $asset");
+            mysqli_query($mysqli, "INSERT INTO software_assets SET software_id = $software_id, asset_id = $asset");
         }
     }
 
     // Update Contact Licenses
-    mysqli_query($mysqli,"DELETE FROM software_contacts WHERE software_id = $software_id");
+    mysqli_query($mysqli, "DELETE FROM software_contacts WHERE software_id = $software_id");
     if (isset($_POST['contacts'])) {
-        foreach($_POST['contacts'] as $contact) {
+        foreach ($_POST['contacts'] as $contact) {
             $contact = intval($contact);
-            mysqli_query($mysqli,"INSERT INTO software_contacts SET software_id = $software_id, contact_id = $contact");
+            mysqli_query($mysqli, "INSERT INTO software_contacts SET software_id = $software_id, contact_id = $contact");
         }
     }
 
     logAction("Software", "Edit", "$session_name edited software $name", $client_id, $software_id);
+
+    triggerWebhook('software.updated', [
+        'software_id' => $software_id,
+        'software_name' => $name,
+        'client_id' => $client_id,
+        'updated_by' => $session_name
+    ], $client_id);
 
     flash_alert("Software <strong>$name</strong> updated");
 
@@ -163,18 +187,26 @@ if (isset($_GET['archive_software'])) {
     $software_id = intval($_GET['archive_software']);
 
     // Get Software Name and Client ID for logging and alert message
-    $sql = mysqli_query($mysqli,"SELECT software_name, software_client_id FROM software WHERE software_id = $software_id");
+    $sql = mysqli_query($mysqli, "SELECT software_name, software_client_id FROM software WHERE software_id = $software_id");
     $row = mysqli_fetch_array($sql);
     $software_name = sanitizeInput($row['software_name']);
     $client_id = intval($row['software_client_id']);
 
-    mysqli_query($mysqli,"UPDATE software SET software_archived_at = NOW() WHERE software_id = $software_id");
+    mysqli_query($mysqli, "UPDATE software SET software_archived_at = NOW() WHERE software_id = $software_id");
 
     // Remove Software Relations
-    mysqli_query($mysqli,"DELETE FROM software_contacts WHERE software_id = $software_id");
-    mysqli_query($mysqli,"DELETE FROM software_assets WHERE software_id = $software_id");
+    mysqli_query($mysqli, "DELETE FROM software_contacts WHERE software_id = $software_id");
+    mysqli_query($mysqli, "DELETE FROM software_assets WHERE software_id = $software_id");
 
     logAction("Software", "Archive", "$session_name archived software $software_name and removed all device/user license associations", $client_id, $software_id);
+
+    // Trigger webhook for software archived
+    triggerWebhook('software.archived', [
+        'software_id' => $software_id,
+        'software_name' => $software_name,
+        'client_id' => $client_id,
+        'archived_by' => $session_name
+    ], $client_id);
 
     flash_alert("Software <strong>$software_name</strong> archived and removed all device/user license associations", 'error');
 
@@ -189,14 +221,21 @@ if (isset($_GET['delete_software'])) {
     $software_id = intval($_GET['delete_software']);
 
     // Get Software Name and Client ID for logging and alert message
-    $sql = mysqli_query($mysqli,"SELECT software_name, software_client_id FROM software WHERE software_id = $software_id");
+    $sql = mysqli_query($mysqli, "SELECT software_name, software_client_id FROM software WHERE software_id = $software_id");
     $row = mysqli_fetch_array($sql);
     $software_name = sanitizeInput($row['software_name']);
     $client_id = intval($row['software_client_id']);
 
-    mysqli_query($mysqli,"DELETE FROM software WHERE software_id = $software_id");
+    mysqli_query($mysqli, "DELETE FROM software WHERE software_id = $software_id");
 
     logAction("Software", "Delete", "$session_name deleted software $software_name and removed all device/user license associations", $client_id);
+
+    triggerWebhook('software.deleted', [
+        'software_id' => $software_id,
+        'software_name' => $software_name,
+        'client_id' => $client_id,
+        'deleted_by' => $session_name
+    ], $client_id);
 
     flash_alert("Software <strong>$software_name</strong> deleted and removed all device/user license associations", 'error');
 
@@ -219,14 +258,14 @@ if (isset($_POST['export_software_csv'])) {
         $file_name_prepend = "$session_company_name-";
     }
 
-    $sql = mysqli_query($mysqli,"SELECT * FROM software $client_query ORDER BY software_name ASC");
+    $sql = mysqli_query($mysqli, "SELECT * FROM software $client_query ORDER BY software_name ASC");
 
     $num_rows = mysqli_num_rows($sql);
 
     if ($num_rows > 0) {
         $delimiter = ",";
         $enclosure = '"';
-        $escape    = '\\';   // backslash
+        $escape = '\\';   // backslash
         $filename = sanitize_filename($file_name_prepend . "Software-" . date('Y-m-d_H-i-s') . ".csv");
 
         //create a file pointer
@@ -237,32 +276,36 @@ if (isset($_POST['export_software_csv'])) {
         fputcsv($f, $fields, $delimiter, $enclosure, $escape);
 
         //output each row of the data, format line as csv and write to file pointer
-        while($row = $sql->fetch_assoc()) {
+        while ($row = $sql->fetch_assoc()) {
 
             // Generate asset & user license list for this software
 
             // Asset licenses
             $assigned_to_assets = '';
-            $asset_licenses_sql = mysqli_query($mysqli,"SELECT software_assets.asset_id, assets.asset_name
+            $asset_licenses_sql = mysqli_query(
+                $mysqli,
+                "SELECT software_assets.asset_id, assets.asset_name
                 FROM software_assets
                 LEFT JOIN assets
                     ON software_assets.asset_id = assets.asset_id
                 WHERE software_id = $row[software_id]"
             );
-            while($asset_row = mysqli_fetch_array($asset_licenses_sql)) {
+            while ($asset_row = mysqli_fetch_array($asset_licenses_sql)) {
                 $assigned_to_assets .= $asset_row['asset_name'] . ", ";
             }
 
             // Contact Licenses
             $assigned_to_contacts = '';
-            $contact_licenses_sql = mysqli_query($mysqli,"SELECT software_contacts.contact_id, contacts.contact_name
+            $contact_licenses_sql = mysqli_query(
+                $mysqli,
+                "SELECT software_contacts.contact_id, contacts.contact_name
                 FROM software_contacts
                 LEFT JOIN contacts
                   ON software_contacts.contact_id = contacts.contact_id
                 WHERE software_id = $row[software_id]"
             );
 
-            while($contact_row = mysqli_fetch_array($contact_licenses_sql)) {
+            while ($contact_row = mysqli_fetch_array($contact_licenses_sql)) {
                 $assigned_to_contacts .= $contact_row['contact_name'] . ", ";
             }
 

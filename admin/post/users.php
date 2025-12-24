@@ -6,6 +6,9 @@
 
 defined('FROM_POST_HANDLER') || die("Direct file access is not allowed");
 
+// Webhook functions
+require_once dirname(__FILE__) . "/../../includes/webhook_functions.php";
+
 if (isset($_POST['add_user'])) {
 
     validateCSRFToken($_POST['csrf_token']);
@@ -21,9 +24,9 @@ if (isset($_POST['add_user'])) {
 
     // Add Client Access Permissions if set
     if (isset($_POST['clients'])) {
-        foreach($_POST['clients'] as $client_id) {
+        foreach ($_POST['clients'] as $client_id) {
             $client_id = intval($client_id);
-            mysqli_query($mysqli,"INSERT INTO user_client_permissions SET user_id = $user_id, client_id = $client_id");
+            mysqli_query($mysqli, "INSERT INTO user_client_permissions SET user_id = $user_id, client_id = $client_id");
         }
     }
 
@@ -52,7 +55,7 @@ if (isset($_POST['add_user'])) {
     // Create Settings
     mysqli_query($mysqli, "INSERT INTO user_settings SET user_id = $user_id, user_config_force_mfa = $force_mfa");
 
-    $sql = mysqli_query($mysqli,"SELECT * FROM companies WHERE company_id = 1");
+    $sql = mysqli_query($mysqli, "SELECT * FROM companies WHERE company_id = 1");
     $row = mysqli_fetch_array($sql);
     $company_name = sanitizeInput($row['company_name']);
 
@@ -92,6 +95,13 @@ if (isset($_POST['add_user'])) {
 
     logAction("User", "Create", "$session_name created user $name", 0, $user_id);
 
+    triggerWebhook('user.created', [
+        'user_id' => $user_id,
+        'user_name' => $name,
+        'user_email' => $email,
+        'created_by' => $session_name
+    ]);
+
     flash_alert("User <strong>$name</strong> created" . $extended_alert_description);
 
     redirect();
@@ -108,11 +118,11 @@ if (isset($_POST['edit_user'])) {
     $new_password = trim($_POST['new_password']);
 
     // Update Client Access
-    mysqli_query($mysqli,"DELETE FROM user_client_permissions WHERE user_id = $user_id");
+    mysqli_query($mysqli, "DELETE FROM user_client_permissions WHERE user_id = $user_id");
     if (isset($_POST['clients'])) {
-        foreach($_POST['clients'] as $client_id) {
+        foreach ($_POST['clients'] as $client_id) {
             $client_id = intval($client_id);
-            mysqli_query($mysqli,"INSERT INTO user_client_permissions SET user_id = $user_id, client_id = $client_id");
+            mysqli_query($mysqli, "INSERT INTO user_client_permissions SET user_id = $user_id, client_id = $client_id");
         }
     }
 
@@ -148,7 +158,7 @@ if (isset($_POST['edit_user'])) {
             // Set Avatar
             mysqli_query($mysqli, "UPDATE users SET user_avatar = '$new_file_name' WHERE user_id = $user_id");
             $extended_alert_description = '. File successfully uploaded.';
-        
+
         }
     }
 
@@ -172,6 +182,13 @@ if (isset($_POST['edit_user'])) {
 
     logAction("User", "Edit", "$session_name edited user $name", 0, $user_id);
 
+    triggerWebhook('user.updated', [
+        'user_id' => $user_id,
+        'user_name' => $name,
+        'user_email' => $email,
+        'updated_by' => $session_name
+    ]);
+
     flash_alert("User <strong>$name</strong> updated" . $extended_alert_description);
 
     redirect();
@@ -189,6 +206,13 @@ if (isset($_GET['activate_user'])) {
     mysqli_query($mysqli, "UPDATE users SET user_status = 1 WHERE user_id = $user_id");
 
     logAction("User", "Activate", "$session_name activated user $user_name", 0, $user_id);
+
+    triggerWebhook('user.updated', [
+        'user_id' => $user_id,
+        'user_name' => $user_name,
+        'status' => 'Activated',
+        'updated_by' => $session_name
+    ]);
 
     flash_alert("User <strong>$user_name</strong> activated");
 
@@ -211,6 +235,13 @@ if (isset($_GET['disable_user'])) {
     mysqli_query($mysqli, "UPDATE recurring_tickets SET recurring_ticket_assigned_to = 0 WHERE recurring_ticket_assigned_to = $user_id");
 
     logAction("User", "Disable", "$session_name disabled user $name", 0, $user_id);
+
+    triggerWebhook('user.updated', [
+        'user_id' => $user_id,
+        'user_name' => $user_name,
+        'status' => 'Disabled',
+        'updated_by' => $session_name
+    ]);
 
     flash_alert("User <strong>$user_name</strong> disabled", 'error');
 
@@ -255,6 +286,12 @@ if (isset($_POST['archive_user'])) {
 
     logAction("User", "Archive", "$session_name archived user $user_name", 0, $user_id);
 
+    triggerWebhook('user.deleted', [
+        'user_id' => $user_id,
+        'user_name' => $user_name,
+        'deleted_by' => $session_name
+    ]);
+
     flash_alert("User <strong>$user_name</strong> archived", 'error');
 
     redirect();
@@ -285,6 +322,13 @@ if (isset($_POST['restore_user'])) {
 
     logAction("User", "Restored", "$session_name restored user $user_name", 0, $user_id);
 
+    triggerWebhook('user.created', [
+        'user_id' => $user_id,
+        'user_name' => $user_name,
+        'status' => 'Restored',
+        'created_by' => $session_name
+    ]);
+
     flash_alert("User <strong>$user_name</strong> restored");
 
     redirect();
@@ -301,7 +345,7 @@ if (isset($_POST['export_users_csv'])) {
     if ($count > 0) {
         $delimiter = ",";
         $enclosure = '"';
-        $escape    = '\\';   // backslash
+        $escape = '\\';   // backslash
         $filename = "Users-" . date('Y-m-d') . ".csv";
 
         //create a file pointer
@@ -312,14 +356,14 @@ if (isset($_POST['export_users_csv'])) {
         fputcsv($f, $fields, $delimiter, $enclosure, $escape);
 
         //output each row of the data, format line as csv and write to file pointer
-        while($row = $sql->fetch_assoc()) {
+        while ($row = $sql->fetch_assoc()) {
 
             $user_status = intval($row['user_status']);
             if ($user_status == 2) {
                 $user_status_display = "Invited";
             } elseif ($user_status == 1) {
                 $user_status_display = "Active";
-            } else{
+            } else {
                 $user_status_display = "Disabled";
             }
 
@@ -354,7 +398,7 @@ if (isset($_POST['ir_reset_user_password'])) {
     $admin_password = $_POST['admin_password'];
     $sql = mysqli_query($mysqli, "SELECT * FROM users WHERE user_id = $session_user_id");
     $userRow = mysqli_fetch_array($sql);
-    
+
     if (!password_verify($admin_password, $userRow['user_password'])) {
         flash_alert("Incorrect password.", 'error');
         redirect();
