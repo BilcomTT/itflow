@@ -2914,3 +2914,58 @@ CREATE TABLE `vendors` (
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
 -- Dump completed on 2025-11-11 19:57:21
+
+--
+-- Table structure for table `webhooks`
+--
+
+DROP TABLE IF EXISTS `webhooks`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `webhooks` (
+  `webhook_id` int(11) NOT NULL AUTO_INCREMENT,
+  `webhook_name` varchar(255) NOT NULL,
+  `webhook_description` varchar(500) DEFAULT NULL,
+  `webhook_url` varchar(500) NOT NULL,
+  `webhook_secret` varchar(255) NOT NULL,
+  `webhook_enabled` tinyint(1) NOT NULL DEFAULT 1,
+  `webhook_event_types` text NOT NULL COMMENT 'JSON array of event types',
+  `webhook_client_id` int(11) NOT NULL DEFAULT 0 COMMENT '0 = all clients',
+  `webhook_tag_id` int(11) NOT NULL DEFAULT 0,
+  `webhook_rate_limit` int(11) NOT NULL DEFAULT 100 COMMENT 'Max calls per hour, 0 = unlimited',
+  `webhook_queuing_enabled` tinyint(1) NOT NULL DEFAULT 1,
+  `webhook_max_retries` int(11) NOT NULL DEFAULT 5,
+  `webhook_created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `webhook_updated_at` datetime DEFAULT NULL ON UPDATE current_timestamp(),
+  PRIMARY KEY (`webhook_id`),
+  KEY `idx_webhook_enabled` (`webhook_enabled`),
+  KEY `idx_webhook_client_id` (`webhook_client_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `webhook_logs`
+--
+
+DROP TABLE IF EXISTS `webhook_logs`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `webhook_logs` (
+  `webhook_log_id` int(11) NOT NULL AUTO_INCREMENT,
+  `webhook_log_webhook_id` int(11) NOT NULL,
+  `webhook_log_event_type` varchar(100) NOT NULL,
+  `webhook_log_payload` text NOT NULL,
+  `webhook_log_response_code` int(11) NOT NULL DEFAULT 0,
+  `webhook_log_response_body` text DEFAULT NULL,
+  `webhook_log_status` enum('success','failed','pending','retried') NOT NULL DEFAULT 'pending',
+  `webhook_log_attempt_count` int(11) NOT NULL DEFAULT 1,
+  `webhook_log_next_retry_at` datetime DEFAULT NULL,
+  `webhook_log_created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`webhook_log_id`),
+  KEY `idx_webhook_log_webhook_id` (`webhook_log_webhook_id`),
+  KEY `idx_webhook_log_status` (`webhook_log_status`),
+  KEY `idx_webhook_log_next_retry` (`webhook_log_next_retry_at`),
+  KEY `idx_webhook_log_created` (`webhook_log_created_at`),
+  CONSTRAINT `fk_webhook_logs_webhook` FOREIGN KEY (`webhook_log_webhook_id`) REFERENCES `webhooks` (`webhook_id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
