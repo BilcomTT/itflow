@@ -220,6 +220,13 @@ $event_types = getWebhookEventTypes();
             <small class="form-text text-muted">Used to sign webhook payloads. Leave blank to auto-generate.</small>
         </div>
 
+        <div class="form-group">
+            <div class="custom-control custom-switch">
+                <input type="checkbox" class="custom-control-input" name="enabled" id="webhookEnabled" value="1" checked>
+                <label class="custom-control-label" for="webhookEnabled">Enabled</label>
+            </div>
+        </div>
+
     </div>
     <div class="modal-footer">
         <button type="submit" name="add_webhook" class="btn btn-primary text-bold"><i
@@ -253,26 +260,22 @@ $event_types = getWebhookEventTypes();
     }
 
     function toggleAllEvents(checkbox) {
-        // Only select currently visible checkboxes
-        var visibleCheckboxes = document.querySelectorAll('.event-checkbox:not([style*="display: none"])');
-        
-        // If advanced is hidden, we need to be careful not to select hidden ones if we were selecting all
-        // But the previous implementation selected ALL .event-checkbox
-        // Let's refine: Select all checkboxes that are currently visible
-        // However, the tier-section is what gets hidden, not the checkbox itself directly.
-        
         // Get current view mode
         var isAdvanced = document.getElementById('view_advanced').parentElement.classList.contains('active');
         
-        var selector = '.event-checkbox';
-        if (!isAdvanced) {
-            // Only select basic tiers (1 & 2)
-            selector = '.tier-1, .tier-2';
+        // Select appropriate checkboxes based on view mode
+        var eventCheckboxes;
+        if (isAdvanced) {
+            // Select all event checkboxes in advanced view
+            eventCheckboxes = document.querySelectorAll('.event-checkbox');
+        } else {
+            // Select only basic tier checkboxes (1 & 2) in basic view
+            eventCheckboxes = document.querySelectorAll('.tier-1, .tier-2');
         }
         
-        var eventCheckboxes = document.querySelectorAll(selector);
+        // Check/uncheck all visible checkboxes
         eventCheckboxes.forEach(function (cb) {
-            // Check if parent tier-section is visible (double check)
+            // Only check boxes that are actually visible (parent is visible)
             if (cb.offsetParent !== null) {
                 cb.checked = checkbox.checked;
             }

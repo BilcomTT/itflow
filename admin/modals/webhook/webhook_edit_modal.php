@@ -292,19 +292,22 @@ $event_types = getWebhookEventTypes();
     }
 
     function toggleAllEventsEdit(checkbox) {
-        // Only select currently visible checkboxes
         // Get current view mode
         var isAdvanced = document.getElementById('view_advanced_edit').parentElement.classList.contains('active');
         
-        var selector = '.event-checkbox-edit';
-        if (!isAdvanced) {
-            // Only select basic tiers (1 & 2)
-            selector = '.tier-edit-1, .tier-edit-2';
+        // Select appropriate checkboxes based on view mode
+        var eventCheckboxes;
+        if (isAdvanced) {
+            // Select all event checkboxes in advanced view
+            eventCheckboxes = document.querySelectorAll('.event-checkbox-edit');
+        } else {
+            // Select only basic tier checkboxes (1 & 2) in basic view
+            eventCheckboxes = document.querySelectorAll('.tier-edit-1, .tier-edit-2');
         }
         
-        var eventCheckboxes = document.querySelectorAll(selector);
+        // Check/uncheck all visible checkboxes
         eventCheckboxes.forEach(function (cb) {
-            // Check if parent tier-section is visible (double check)
+            // Only check boxes that are actually visible (parent is visible)
             if (cb.offsetParent !== null) {
                 cb.checked = checkbox.checked;
             }
