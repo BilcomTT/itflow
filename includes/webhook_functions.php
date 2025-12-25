@@ -15,13 +15,35 @@ function triggerWebhook($event_type, $data, $client_id = 0)
 {
     global $mysqli;
 
+    // Ensure database connection is valid
+    if (!$mysqli || !($mysqli instanceof mysqli)) {
+        if (isset($GLOBALS['mysqli']) && $GLOBALS['mysqli'] instanceof mysqli) {
+            $mysqli = $GLOBALS['mysqli'];
+        } else {
+            error_log("Webhook Error: Database connection not available in triggerWebhook for event: $event_type");
+            return;
+        }
+    }
+
     // Build query to get matching webhooks
     $event_type_escaped = mysqli_real_escape_string($mysqli, $event_type);
+    $client_id = intval($client_id);
 
     $sql = "SELECT * FROM webhooks 
             WHERE webhook_enabled = 1 
-            AND (webhook_client_id = 0 OR webhook_client_id = $client_id)
             AND (webhook_event_types LIKE '%\"$event_type_escaped\"%' OR webhook_event_types LIKE '%\"*\"%')";
+
+    if ($client_id > 0) {
+        // Match: Global OR Specific Client OR Tag match
+        $sql .= " AND (
+            webhook_client_id = 0 
+            OR webhook_client_id = $client_id 
+            OR (webhook_client_id = -1 AND webhook_tag_id IN (SELECT tag_id FROM client_tags WHERE client_id = $client_id))
+        )";
+    } else {
+        // System events only trigger global webhooks
+        $sql .= " AND webhook_client_id = 0";
+    }
 
     $result = mysqli_query($mysqli, $sql);
 
