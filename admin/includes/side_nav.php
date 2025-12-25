@@ -42,7 +42,7 @@
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a href="/admin/settings_webhooks.php" class="nav-link <?php if (basename($_SERVER["PHP_SELF"]) == "settings_webhooks.php") {echo "active";} ?>">
+                    <a href="/admin/webhooks.php" class="nav-link <?php if (basename($_SERVER["PHP_SELF"]) == "webhooks.php") {echo "active";} ?>">
                         <i class="nav-icon fas fa-plug"></i>
                         <p>Webhooks</p>
                     </a>
