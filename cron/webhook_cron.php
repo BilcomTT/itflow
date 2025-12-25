@@ -11,7 +11,7 @@
 // Include required files
 require_once dirname(__FILE__) . "/../config.php";
 require_once dirname(__FILE__) . "/../functions.php";
-require_once dirname(__FILE__) . "/../includes/webhook_functions.php";
+// require_once dirname(__FILE__) . "/../includes/webhook_functions.php";
 
 // Optional: Check cron key if enabled
 if (isset($config_cron_key) && !empty($config_cron_key)) {

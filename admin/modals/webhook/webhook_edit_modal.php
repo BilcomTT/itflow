@@ -1,66 +1,8 @@
 <?php
 
 require_once "../../../includes/modal_header.php";
+// Webhook functions included via functions.php (modal_header.php)
 // require_once "../../../includes/webhook_functions.php";
-
-// Temporary include/definition for testing
-function getWebhookEventTypes()
-{
-    return [
-        'Tier 1: Revenue & Client Lifecycle' => [
-            'invoice.created' => 'Invoice Created',
-            'invoice.sent' => 'Invoice Sent',
-            'invoice.paid' => 'Invoice Paid',
-            'invoice.overdue' => 'Invoice Overdue',
-            'payment.received' => 'Payment Received',
-            'quote.sent' => 'Quote Sent',
-            'quote.accepted' => 'Quote Accepted',
-            'quote.declined' => 'Quote Declined',
-            'client.created' => 'Client Created',
-            'client.status_changed' => 'Client Status Changed',
-            'client.updated' => 'Client Updated',
-            'client.archived' => 'Client Archived',
-            'client.deleted' => 'Client Deleted'
-        ],
-        'Tier 2: Service Delivery & SLA' => [
-            'ticket.created' => 'Ticket Created',
-            'ticket.priority_changed' => 'Ticket Priority Changed',
-            'ticket.status_changed' => 'Ticket Status Changed',
-            'ticket.assigned' => 'Ticket Assigned',
-            'ticket.resolved' => 'Ticket Resolved',
-            'ticket.closed' => 'Ticket Closed',
-            'ticket.reopened' => 'Ticket Reopened',
-            'ticket.replied' => 'Ticket Replied',
-            'ticket.deleted' => 'Ticket Deleted',
-            'ticket.sla_breach' => 'Ticket SLA Breach',
-            'ticket.response_overdue' => 'Ticket Response Overdue'
-        ],
-        'Tier 3: Business Operations' => [
-            'contact.created' => 'Contact Created',
-            'contact.updated' => 'Contact Updated',
-            'contact.deleted' => 'Contact Deleted',
-            'asset.created' => 'Asset Created',
-            'asset.updated' => 'Asset Updated',
-            'asset.deleted' => 'Asset Deleted',
-            'asset.assigned' => 'Asset Assigned',
-            'asset.warranty_expiring' => 'Asset Warranty Expiring',
-            'scheduled_ticket.created' => 'Scheduled Ticket Created',
-            'document.uploaded' => 'Document Uploaded',
-            'login.created' => 'Credential/Login Created',
-            'vendor.created' => 'Vendor Created'
-        ],
-        'Tier 4: Automation & Integration' => [
-            'client.note_added' => 'Client Note Added',
-            'service.created' => 'Service Created',
-            'service.renewed' => 'Service Renewed',
-            'service.cancelled' => 'Service Cancelled',
-            'project.created' => 'Project Created',
-            'project.completed' => 'Project Completed',
-            'expense.created' => 'Expense Created',
-            'trip.logged' => 'Trip Logged'
-        ]
-    ];
-}
 
 ob_start();
 

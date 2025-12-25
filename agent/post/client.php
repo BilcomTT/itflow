@@ -7,7 +7,7 @@
 defined('FROM_POST_HANDLER') || die("Direct file access is not allowed");
 
 // Webhook functions are now in includes/webhook_functions.php
-require_once dirname(__FILE__) . "/../../includes/webhook_functions.php";
+// require_once dirname(__FILE__) . "/../../includes/webhook_functions.php";
 
 if (isset($_POST['add_client'])) {
 

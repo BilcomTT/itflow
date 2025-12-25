@@ -3,48 +3,8 @@ require_once "../../../includes/modal_header.php";
 ob_start();
 
 $webhook_id = intval($_GET['webhook_id']);
+// Webhook functions included via functions.php (modal_header.php)
 // require_once "../../../includes/webhook_functions.php";
-
-// Temporary definitions for testing/fixing 500 error
-function getWebhookLogs($webhook_id, $limit = 50, $offset = 0)
-{
-    global $mysqli;
-
-    $webhook_id = intval($webhook_id);
-    $limit = intval($limit);
-    $offset = intval($offset);
-
-    $result = mysqli_query($mysqli, "SELECT * FROM webhook_logs 
-        WHERE webhook_log_webhook_id = $webhook_id 
-        ORDER BY webhook_log_created_at DESC 
-        LIMIT $offset, $limit
-    ");
-
-    $logs = [];
-    while ($row = mysqli_fetch_assoc($result)) {
-        $logs[] = $row;
-    }
-
-    return $logs;
-}
-
-function getWebhookStats($webhook_id)
-{
-    global $mysqli;
-
-    $webhook_id = intval($webhook_id);
-
-    $result = mysqli_query($mysqli, "SELECT 
-        COUNT(*) as total,
-        SUM(CASE WHEN webhook_log_status = 'success' THEN 1 ELSE 0 END) as success,
-        SUM(CASE WHEN webhook_log_status = 'failed' THEN 1 ELSE 0 END) as failed,
-        SUM(CASE WHEN webhook_log_status = 'pending' THEN 1 ELSE 0 END) as pending
-        FROM webhook_logs 
-        WHERE webhook_log_webhook_id = $webhook_id
-    ");
-
-    return mysqli_fetch_assoc($result);
-}
 
 $sql = mysqli_query($mysqli, "SELECT * FROM webhooks WHERE webhook_id = $webhook_id");
 $webhook = mysqli_fetch_assoc($sql);

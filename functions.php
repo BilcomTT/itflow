@@ -2139,3 +2139,5 @@ function dbRollback(mysqli $mysqli): void
     $mysqli->rollback();
 }
 
+// Include webhook functions
+require_once __DIR__ . '/includes/webhook_functions.php';
