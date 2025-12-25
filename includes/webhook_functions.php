@@ -15,47 +15,13 @@ function triggerWebhook($event_type, $data, $client_id = 0)
 {
     global $mysqli;
 
-    // Ensure database connection is valid
-    if (!$mysqli || !($mysqli instanceof mysqli)) {
-        if (isset($GLOBALS['mysqli']) && $GLOBALS['mysqli'] instanceof mysqli) {
-            $mysqli = $GLOBALS['mysqli'];
-        } else {
-            error_log("Webhook Error: Database connection not available in triggerWebhook for event: $event_type");
-            return;
-        }
-    }
-
     // Build query to get matching webhooks
     $event_type_escaped = mysqli_real_escape_string($mysqli, $event_type);
 
     $sql = "SELECT * FROM webhooks 
             WHERE webhook_enabled = 1 
+            AND (webhook_client_id = 0 OR webhook_client_id = $client_id)
             AND (webhook_event_types LIKE '%\"$event_type_escaped\"%' OR webhook_event_types LIKE '%\"*\"%')";
-    
-    // Add client and tag filtering logic
-    if ($client_id > 0) {
-        $client_id = intval($client_id);
-        
-        // Get client tags
-        $client_tags = [];
-        $tags_sql = mysqli_query($mysqli, "SELECT tag_id FROM client_tags WHERE client_tag_client_id = $client_id");
-        while ($tag = mysqli_fetch_assoc($tags_sql)) {
-            $client_tags[] = intval($tag['tag_id']);
-        }
-        $client_tags_str = implode(',', $client_tags);
-        if (empty($client_tags_str)) {
-            $client_tags_str = '0';
-        }
-
-        $sql .= " AND (
-            webhook_client_id = 0 
-            OR webhook_client_id = $client_id
-            OR (webhook_client_id = -1 AND webhook_tag_id IN ($client_tags_str))
-        )";
-    } else {
-        // If no specific client is involved (system event), only trigger global webhooks
-        $sql .= " AND webhook_client_id = 0";
-    }
 
     $result = mysqli_query($mysqli, $sql);
 
@@ -95,16 +61,15 @@ function sendWebhook($webhook, $event_type, $data, $retry_count = 1)
     $url = $webhook['webhook_url'];
     $secret = $webhook['webhook_secret'];
 
-    // Minimal payload based on industry best practices
+    // Build payload
     $payload = [
-        'id' => uniqid('evt_', true),
         'event' => $event_type,
-        'created' => time(),
+        'timestamp' => date('c'),
         'webhook_id' => $webhook_id,
         'data' => $data
     ];
 
-    $payload_json = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    $payload_json = json_encode($payload);
 
     // Generate HMAC signature
     $signature = generateWebhookSignature($payload_json, $secret);
@@ -122,8 +87,8 @@ function sendWebhook($webhook, $event_type, $data, $retry_count = 1)
             'Content-Type: application/json',
             'X-Webhook-Signature: ' . $signature,
             'X-Webhook-Event: ' . $event_type,
-            'X-Webhook-Delivery: ' . $payload['id'],
-            'User-Agent: ITFlow-Webhook/1.1'
+            'X-Webhook-Delivery: ' . uniqid('wh_', true),
+            'User-Agent: ITFlow-Webhook/1.0'
         ]
     ]);
 
@@ -140,6 +105,10 @@ function sendWebhook($webhook, $event_type, $data, $retry_count = 1)
     // Truncate response body for logging
     $response_body_truncated = substr($response_body ?: $curl_error, 0, 1000);
 
+    // Get webhook settings for queuing and retries
+    $queuing_enabled = intval($webhook['webhook_queuing_enabled'] ?? 1);
+    $max_retries = intval($webhook['webhook_max_retries'] ?? 5);
+
     // Log the delivery attempt
     $log_id = logWebhookDelivery(
         $webhook_id,
@@ -147,30 +116,16 @@ function sendWebhook($webhook, $event_type, $data, $retry_count = 1)
         $payload_json,
         $response_code,
         $response_body_truncated,
-        $success ? 'success' : 'pending',
+        $success ? 'success' : ($queuing_enabled ? 'pending' : 'failed'),
         $retry_count
     );
 
-    // If failed and under retry limit, schedule for retry
-    if (!$success && $retry_count < 5) {
+    // If failed, queuing is enabled, and under retry limit, schedule for retry
+    if (!$success && $queuing_enabled && $retry_count < $max_retries) {
         queueWebhookForRetry($log_id, $retry_count);
-    } elseif (!$success) {
-        // Mark as permanently failed after 5 attempts
+    } elseif (!$success && $queuing_enabled) {
+        // Mark as permanently failed after max attempts
         mysqli_query($mysqli, "UPDATE webhook_logs SET webhook_log_status = 'failed' WHERE webhook_log_id = $log_id");
-        
-        // Notify admin about failed webhook
-        $notification_message = "Webhook failed after 5 attempts. ID: $webhook_id, Event: $event_type";
-        $admins_sql = mysqli_query($mysqli, "SELECT user_id FROM users WHERE user_role = 'admin' AND user_archived_at IS NULL");
-        while ($admin = mysqli_fetch_assoc($admins_sql)) {
-            $user_id = intval($admin['user_id']);
-            $sql_notif = "INSERT INTO notifications SET 
-                notification_type = 'Webhook Failed',
-                notification_message = '$notification_message',
-                notification_url = 'admin/webhooks.php?view_log=$webhook_id',
-                notification_user_id = $user_id,
-                notification_created_at = NOW()";
-            mysqli_query($mysqli, $sql_notif);
-        }
     }
 
     return $success;
@@ -361,7 +316,8 @@ function sendTestWebhook($webhook_id)
     $test_data = [
         'test' => true,
         'message' => 'This is a test webhook from ITFlow',
-        'webhook_name' => $webhook['webhook_name']
+        'webhook_name' => $webhook['webhook_name'],
+        'timestamp' => date('c')
     ];
 
     // Send test webhook
@@ -451,20 +407,16 @@ function getWebhookEventTypes()
             'invoice.sent' => 'Invoice Sent',
             'invoice.paid' => 'Invoice Paid',
             'invoice.overdue' => 'Invoice Overdue',
-            'invoice.updated' => 'Invoice Updated',
-            'invoice.cancelled' => 'Invoice Cancelled',
-            'invoice.deleted' => 'Invoice Deleted',
             'payment.received' => 'Payment Received',
-            'payment.deleted' => 'Payment Deleted',
+            'quote.viewed' => 'Quote Viewed',
             'quote.sent' => 'Quote Sent',
             'quote.accepted' => 'Quote Accepted',
             'quote.declined' => 'Quote Declined',
             'quote.updated' => 'Quote Updated',
-            'quote.viewed' => 'Quote Viewed',
             'client.created' => 'Client Created',
+            'client.status_changed' => 'Client Status Changed',
             'client.updated' => 'Client Updated',
             'client.archived' => 'Client Archived',
-            'client.restored' => 'Client Restored',
             'client.deleted' => 'Client Deleted'
         ],
         'Tier 2: Service Delivery & SLA' => [
@@ -476,56 +428,42 @@ function getWebhookEventTypes()
             'ticket.closed' => 'Ticket Closed',
             'ticket.reopened' => 'Ticket Reopened',
             'ticket.replied' => 'Ticket Replied',
-            'ticket.deleted' => 'Ticket Deleted',
-            'ticket.merged' => 'Ticket Merged',
-            'ticket.updated' => 'Ticket Updated',
             'ticket.scheduled' => 'Ticket Scheduled',
             'ticket.unscheduled' => 'Ticket Unscheduled',
+            'ticket.deleted' => 'Ticket Deleted',
             'ticket.sla_breach' => 'Ticket SLA Breach',
             'ticket.response_overdue' => 'Ticket Response Overdue'
         ],
         'Tier 3: Business Operations' => [
             'contact.created' => 'Contact Created',
             'contact.updated' => 'Contact Updated',
-            'contact.deleted' => 'Contact Deleted',
             'contact.archived' => 'Contact Archived',
+            'contact.deleted' => 'Contact Deleted',
             'asset.created' => 'Asset Created',
             'asset.updated' => 'Asset Updated',
+            'asset.archived' => 'Asset Archived',
             'asset.deleted' => 'Asset Deleted',
             'asset.assigned' => 'Asset Assigned',
-            'asset.archived' => 'Asset Archived',
             'asset.warranty_expiring' => 'Asset Warranty Expiring',
-            'recurring_ticket.created' => 'Recurring Ticket Created',
-            'recurring_ticket.updated' => 'Recurring Ticket Updated',
-            'recurring_ticket.deleted' => 'Recurring Ticket Deleted',
-            'recurring_ticket.scheduled' => 'Recurring Ticket Scheduled',
-            'recurring_ticket.unscheduled' => 'Recurring Ticket Unscheduled',
-            'recurring_invoice.created' => 'Recurring Invoice Created',
-            'recurring_invoice.updated' => 'Recurring Invoice Updated',
-            'recurring_invoice.deleted' => 'Recurring Invoice Deleted',
-            'document.uploaded' => 'Document Uploaded',
+            'scheduled_ticket.created' => 'Scheduled Ticket Created',
             'document.created' => 'Document Created',
             'document.updated' => 'Document Updated',
-            'document.deleted' => 'Document Deleted',
             'document.archived' => 'Document Archived',
+            'document.deleted' => 'Document Deleted',
             'login.created' => 'Credential/Login Created',
             'password.created' => 'Password Created',
             'password.updated' => 'Password Updated',
             'password.deleted' => 'Password Deleted',
             'password.archived' => 'Password Archived',
-            'vendor.created' => 'Vendor Created',
-            'certificate.created' => 'Certificate Created',
-            'certificate.updated' => 'Certificate Updated',
-            'certificate.deleted' => 'Certificate Deleted',
-            'certificate.archived' => 'Certificate Archived',
             'network.created' => 'Network Created',
             'network.updated' => 'Network Updated',
-            'network.deleted' => 'Network Deleted',
             'network.archived' => 'Network Archived',
-            'software.created' => 'Software Created',
-            'software.updated' => 'Software Updated',
-            'software.deleted' => 'Software Deleted',
-            'software.archived' => 'Software Archived'
+            'network.deleted' => 'Network Deleted',
+            'certificate.created' => 'Certificate Created',
+            'certificate.updated' => 'Certificate Updated',
+            'certificate.archived' => 'Certificate Archived',
+            'certificate.deleted' => 'Certificate Deleted',
+            'vendor.created' => 'Vendor Created'
         ],
         'Tier 4: Automation & Integration' => [
             'client.note_added' => 'Client Note Added',
@@ -535,13 +473,7 @@ function getWebhookEventTypes()
             'project.created' => 'Project Created',
             'project.completed' => 'Project Completed',
             'expense.created' => 'Expense Created',
-            'trip.logged' => 'Trip Logged',
-            'user.created' => 'User Created',
-            'user.updated' => 'User Updated',
-            'user.deleted' => 'User Deleted',
-            'system.settings_updated' => 'System Settings Updated',
-            'system.login_success' => 'System Login Success',
-            'system.login_failure' => 'System Login Failure'
+            'trip.logged' => 'Trip Logged'
         ]
     ];
 }
