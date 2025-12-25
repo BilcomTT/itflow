@@ -38,7 +38,7 @@ $event_types = getWebhookEventTypes();
         <span>&times;</span>
     </button>
 </div>
-<form action="post.php" method="post" autocomplete="off">
+<form action="../../post.php" method="post" autocomplete="off">
     <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
     <input type="hidden" name="webhook_id" value="<?php echo $webhook_id; ?>">
     <div class="modal-body">
@@ -80,7 +80,7 @@ $event_types = getWebhookEventTypes();
                     <button type="button" class="btn btn-info" onclick="copySecretEdit()" title="Copy to clipboard">
                         <i class="fas fa-copy"></i>
                     </button>
-                    <a href="post.php?regenerate_webhook_secret=<?php echo $webhook_id; ?>&csrf_token=<?php echo $_SESSION['csrf_token']; ?>"
+                    <a href="../../post.php?regenerate_webhook_secret=<?php echo $webhook_id; ?>&csrf_token=<?php echo $_SESSION['csrf_token']; ?>"
                         class="btn btn-warning confirm-link" title="Generate new secret">
                         <i class="fas fa-sync-alt"></i>
                     </a>
@@ -236,7 +236,7 @@ $event_types = getWebhookEventTypes();
                             <?php foreach ($events as $event_key => $event_name): ?>
                                 <?php $checked = in_array($event_key, $webhook_selected_events) ? 'checked' : ''; ?>
                                 <div class="form-check ml-2">
-                                    <input class="form-check-input event-checkbox-edit tier-edit-<?php echo $tier; ?>" type="checkbox" name="event_types[]"
+                                    <input class="form-check-input event-checkbox-edit tier-edit-<?php echo $tier; ?>" type="checkbox" name="webhook_events[]"
                                         value="<?php echo $event_key; ?>" id="event_edit_<?php echo $event_key; ?>" <?php echo $checked; ?>>
                                     <label class="form-check-label" for="event_edit_<?php echo $event_key; ?>">
                                         <?php echo $event_name; ?>

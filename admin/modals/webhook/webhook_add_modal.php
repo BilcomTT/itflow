@@ -16,7 +16,7 @@ $event_types = getWebhookEventTypes();
         <span>&times;</span>
     </button>
 </div>
-<form action="post.php" method="post" autocomplete="off">
+<form action="../../post.php" method="post" autocomplete="off">
     <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
     <div class="modal-body">
 
@@ -185,7 +185,7 @@ $event_types = getWebhookEventTypes();
                             </div>
                             <?php foreach ($events as $event_key => $event_name): ?>
                                 <div class="form-check ml-2">
-                                    <input class="form-check-input event-checkbox tier-<?php echo $tier; ?>" type="checkbox" name="event_types[]"
+                                    <input class="form-check-input event-checkbox tier-<?php echo $tier; ?>" type="checkbox" name="webhook_events[]"
                                         value="<?php echo $event_key; ?>" id="event_<?php echo $event_key; ?>">
                                     <label class="form-check-label" for="event_<?php echo $event_key; ?>">
                                         <?php echo $event_name; ?>
