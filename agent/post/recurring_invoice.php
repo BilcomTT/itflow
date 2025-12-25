@@ -58,6 +58,12 @@ if (isset($_POST['add_invoice_recurring'])) {
 
     logAction("Recurring Invoice", "Create", "$session_name created recurring Invoice from Invoice $invoice_prefix$invoice_number", $client_id, $recurring_invoice_id);
 
+    triggerWebhook('recurring_invoice.created', [
+        'recurring_invoice_id' => $recurring_invoice_id,
+        'client_id' => $client_id,
+        'invoice_id' => $invoice_id
+    ], $client_id);
+
     flash_alert("Created recurring Invoice from Invoice <strong>$invoice_prefix$invoice_number</strong>");
 
     redirect("recurring_invoice.php?recurring_invoice_id=$recurring_invoice_id");
@@ -90,6 +96,11 @@ if (isset($_POST['add_recurring_invoice'])) {
     mysqli_query($mysqli,"INSERT INTO history SET history_status = 'Active', history_description = 'Recurring Invoice created', history_recurring_invoice_id = $recurring_invoice_id");
 
     logAction("Recurring Invoice", "Create", "$session_name created recurring invoice $config_recurring_invoice_prefix$recurring_invoice_number - $scope", $client_id, $recurring_invoice_id);
+
+    triggerWebhook('recurring_invoice.created', [
+        'recurring_invoice_id' => $recurring_invoice_id,
+        'client_id' => $client_id
+    ], $client_id);
 
     flash_alert("Recurring Invoice <strong>$config_recurring_invoice_prefix$recurring_invoice_number</strong> created");
 
@@ -129,6 +140,11 @@ if (isset($_POST['edit_recurring_invoice'])) {
 
     logAction("Recurring Invoice", "Edit", "$session_name edited recurring invoice $recurring_invoice_prefix$recurring_invoice_number - $scope", $client_id, $recurring_invoice_id);
 
+    triggerWebhook('recurring_invoice.updated', [
+        'recurring_invoice_id' => $recurring_invoice_id,
+        'client_id' => $client_id
+    ], $client_id);
+
     flash_alert("Recurring Invoice <strong>$recurring_invoice_prefix$recurring_invoice_number</strong> edited");
 
     redirect();
@@ -164,6 +180,11 @@ if (isset($_GET['delete_recurring_invoice'])) {
     }
 
     logAction("Recurring Invoice", "Delete", "$session_name deleted recurring invoice $recurring_invoice_prefix$recurring_invoice_number - $recurring_invoice_scope", $client_id);
+
+    triggerWebhook('recurring_invoice.deleted', [
+        'recurring_invoice_id' => $recurring_invoice_id,
+        'client_id' => $client_id
+    ], $client_id);
 
     flash_alert("Recurring Invoice <strong>$recurring_invoice_prefix$recurring_invoice_number</strong> deleted", 'error');
 
@@ -354,10 +375,15 @@ if (isset($_GET['force_recurring'])) {
     $row = mysqli_fetch_array($sql_recurring_invoice_total);
     $new_recurring_invoice_amount = floatval($row['recurring_invoice_total']) - $recurring_invoice_discount_amount;
 
-    mysqli_query($mysqli,"UPDATE recurring_invoices SET recurring_invoice_amount = $new_recurring_invoice_amount, recurring_invoice_last_sent = CURDATE(), recurring_invoice_next_date = DATE_ADD(CURDATE(), INTERVAL 1 $recurring_invoice_frequency) WHERE recurring_invoice_id = $recurring_invoice_id");
+    mysqli_query($mysqli,"UPDATE recurring_invoices SET recurring_invoice_amount = $recurring_invoice_amount, recurring_invoice_last_sent = CURDATE(), recurring_invoice_next_date = DATE_ADD(CURDATE(), INTERVAL 1 $recurring_invoice_frequency) WHERE recurring_invoice_id = $recurring_invoice_id");
 
     //Also update the newly created invoice with the new amounts
     mysqli_query($mysqli,"UPDATE invoices SET invoice_amount = $new_recurring_invoice_amount WHERE invoice_id = $new_invoice_id");
+
+    triggerWebhook('recurring_invoice.updated', [
+        'recurring_invoice_id' => $recurring_invoice_id,
+        'client_id' => $client_id
+    ], $client_id);
 
     if ($config_recurring_auto_send_invoice == 1) {
         $sql = mysqli_query($mysqli,"SELECT * FROM invoices

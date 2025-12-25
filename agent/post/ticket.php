@@ -1369,7 +1369,11 @@ if (isset($_POST['bulk_ticket_reply'])) {
             mysqli_query($mysqli, "UPDATE tickets SET ticket_status = '$ticket_status' WHERE ticket_id = $ticket_id");
 
             if ($row['ticket_status'] != $ticket_status) {
-                triggerWebhook('ticket.status_changed', [
+                $webhook_event = 'ticket.status_changed';
+                if ($ticket_status == 4) { $webhook_event = 'ticket.resolved'; }
+                if ($ticket_status == 5) { $webhook_event = 'ticket.closed'; }
+
+                triggerWebhook($webhook_event, [
                     'ticket_id' => $ticket_id,
                     'ticket_number' => $ticket_prefix . $ticket_number,
                     'old_status' => $row['ticket_status'],
@@ -1692,14 +1696,18 @@ if (isset($_POST['add_ticket_reply'])) {
     mysqli_query($mysqli, "UPDATE tickets SET ticket_status = $ticket_status, ticket_updated_at = NOW() WHERE ticket_id = $ticket_id");
 
     if ($original_status != $ticket_status) {
-        triggerWebhook('ticket.status_changed', [
+        $webhook_event = 'ticket.status_changed';
+        if ($ticket_status == 4) { $webhook_event = 'ticket.resolved'; }
+        if ($ticket_status == 5) { $webhook_event = 'ticket.closed'; }
+
+        triggerWebhook($webhook_event, [
             'ticket_id' => $ticket_id,
-            'ticket_number' => getFieldById('tickets', $ticket_id, 'ticket_prefix') . getFieldById('tickets', $ticket_id, 'ticket_number'),
+            'ticket_number' => $ticket_prefix . $ticket_number,
             'old_status' => $original_status,
             'new_status' => $ticket_status,
-            'client_id' => $client_id,
+            'client_id' => intval($row['ticket_client_id']),
             'updated_by' => $session_name
-        ], $client_id);
+        ], intval($row['ticket_client_id']));
     }
 
     // Resolve the ticket, if set
@@ -2033,12 +2041,10 @@ if (isset($_GET['resolve_ticket'])) {
 
     logAction("Ticket", "Resolved", "$session_name resolved ticket $ticket_prefix$ticket_number (ID: $ticket_id)", 0, $ticket_id);
 
-    // Trigger webhook for ticket status changed
-    triggerWebhook('ticket.status_changed', [
+    // Trigger webhook for ticket resolved
+    triggerWebhook('ticket.resolved', [
         'ticket_id' => $ticket_id,
         'ticket_number' => $ticket_prefix . $ticket_number,
-        'old_status' => $row['ticket_status'],
-        'new_status' => 4,
         'client_id' => intval($row['ticket_client_id']),
         'updated_by' => $session_name
     ], intval($row['ticket_client_id']));
@@ -2147,12 +2153,10 @@ if (isset($_GET['close_ticket'])) {
 
     logAction("Ticket", "Closed", "$session_name closed ticket ID $ticket_id", 0, $ticket_id);
 
-    // Trigger webhook for ticket status changed
-    triggerWebhook('ticket.status_changed', [
+    // Trigger webhook for ticket closed
+    triggerWebhook('ticket.closed', [
         'ticket_id' => $ticket_id,
         'ticket_number' => $ticket_prefix . $ticket_number,
-        'old_status' => $row['ticket_status'],
-        'new_status' => 5,
         'client_id' => $client_id,
         'updated_by' => $session_name
     ], $client_id);
@@ -2246,12 +2250,20 @@ if (isset($_GET['reopen_ticket'])) {
 
     logAction("Ticket", "Reopened", "$session_name reopened ticket ID $ticket_id", 0, $ticket_id);
 
-    triggerWebhook('ticket.reopened', [
-        'ticket_id' => $ticket_id,
-        'ticket_number' => getFieldById('tickets', $ticket_id, 'ticket_prefix') . getFieldById('tickets', $ticket_id, 'ticket_number'),
-        'client_id' => intval(getFieldById('tickets', $ticket_id, 'ticket_client_id')),
-        'reopened_by' => $session_name
-    ], intval(getFieldById('tickets', $ticket_id, 'ticket_client_id')));
+    if ($original_status != $ticket_status) {
+        $webhook_event = 'ticket.status_changed';
+        if ($ticket_status == 4) { $webhook_event = 'ticket.resolved'; }
+        if ($ticket_status == 5) { $webhook_event = 'ticket.closed'; }
+
+        triggerWebhook($webhook_event, [
+            'ticket_id' => $ticket_id,
+            'ticket_number' => getFieldById('tickets', $ticket_id, 'ticket_prefix') . getFieldById('tickets', $ticket_id, 'ticket_number'),
+            'old_status' => $original_status,
+            'new_status' => $ticket_status,
+            'client_id' => intval(getFieldById('tickets', $ticket_id, 'ticket_client_id')),
+            'reopened_by' => $session_name
+        ], intval(getFieldById('tickets', $ticket_id, 'ticket_client_id')));
+    }
 
     customAction('ticket_update', $ticket_id);
 
@@ -2617,7 +2629,7 @@ if (isset($_POST['edit_ticket_schedule'])) {
     logAction("Ticket", "Edit", "$session_name edited ticket schedule", $client_id, $ticket_id);
 
     // Trigger webhook for ticket scheduled
-    triggerWebhook('ticket.scheduled', [
+    triggerWebhook('recurring_ticket.scheduled', [
         'ticket_id' => $ticket_id,
         'ticket_number' => $ticket_prefix . $ticket_number,
         'scheduled_at' => $schedule,
@@ -2778,7 +2790,7 @@ if (isset($_GET['cancel_ticket_schedule'])) {
     logAction("Ticket", "Edit", "$session_name cancelled ticket schedule", $client_id, $ticket_id);
 
     // Trigger webhook for ticket unscheduled
-    triggerWebhook('ticket.unscheduled', [
+    triggerWebhook('recurring_ticket.unscheduled', [
         'ticket_id' => $ticket_id,
         'ticket_number' => $ticket_prefix . $ticket_number,
         'client_id' => $client_id,

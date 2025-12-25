@@ -335,10 +335,9 @@ if (isset($_GET['archive_client'])) {
 
     logAction("Client", "Archive", "$session_name archived client $client_name", $client_id, $client_id);
 
-    triggerWebhook('client.status_changed', [
+    triggerWebhook('client.archived', [
         'client_id' => $client_id,
         'client_name' => $client_name,
-        'status' => 'Archived',
         'updated_by' => $session_name
     ], $client_id);
 
@@ -363,10 +362,9 @@ if (isset($_GET['restore_client'])) {
 
     logAction("Client", "Restored", "$session_name restored client $client_name", $client_id);
 
-    triggerWebhook('client.status_changed', [
+    triggerWebhook('client.restored', [
         'client_id' => $client_id,
         'client_name' => $client_name,
-        'status' => 'Active',
         'updated_by' => $session_name
     ], $client_id);
 
@@ -1135,10 +1133,9 @@ if (isset($_POST['bulk_archive_clients'])) {
 
             logAction("Client", "Archive", "$session_name archived $client_name", $client_id);
 
-            triggerWebhook('client.status_changed', [
+            triggerWebhook('client.archived', [
                 'client_id' => $client_id,
                 'client_name' => $client_name,
-                'status' => 'Archived',
                 'updated_by' => $session_name
             ], $client_id);
 
@@ -1178,10 +1175,9 @@ if (isset($_POST['bulk_unarchive_clients'])) {
 
             logAction("client", "Restore", "$session_name restored $client_name", $client_id);
 
-            triggerWebhook('client.status_changed', [
+            triggerWebhook('client.restored', [
                 'client_id' => $client_id,
                 'client_name' => $client_name,
-                'status' => 'Active',
                 'updated_by' => $session_name
             ], $client_id);
 
