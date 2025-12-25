@@ -61,9 +61,176 @@ function triggerWebhook($event_type, $data, $client_id = 0)
             continue;
         }
 
+        // Sanitize data for GDPR/SOC2 compliance
+        $sanitized_data = sanitizeWebhookPayload($data);
+        
         // Send the webhook
-        sendWebhook($webhook, $event_type, $data);
+        sendWebhook($webhook, $event_type, $sanitized_data);
     }
+}
+
+/**
+ * Sanitize webhook payload to remove PII for GDPR/SOC2 compliance
+ *
+ * This function recursively removes personally identifiable information (PII) from
+ * the webhook payload while preserving structural IDs and non-sensitive data.
+ *
+ * @param array $data The data to sanitize
+ * @return array The sanitized data
+ */
+function sanitizeWebhookPayload($data)
+{
+    // PII field patterns to remove (blacklist approach)
+    // These are field names that typically contain personal information
+    $pii_patterns = [
+        // Contact information
+        'contact_name',
+        'contact_email',
+        'contact_phone',
+        'contact_mobile',
+        'contact_fax',
+        'contact_address',
+        'contact_city',
+        'contact_state',
+        'contact_zip',
+        'contact_country',
+        'contact_notes',
+        
+        // User information
+        'user_name',
+        'user_email',
+        'user_phone',
+        'user_avatar',
+        'user_display_name',
+        'user_full_name',
+        'user_first_name',
+        'user_last_name',
+        
+        // Client information (potential PII)
+        'client_name',
+        'client_email',
+        'client_phone',
+        'client_fax',
+        'client_address',
+        'client_city',
+        'client_state',
+        'client_zip',
+        'client_country',
+        'client_notes',
+        'client_website',
+        'client_tax_id',
+        'client_ssn',
+        'client_account_number',
+        
+        // Vendor information (potential PII)
+        'vendor_name',
+        'vendor_email',
+        'vendor_phone',
+        'vendor_fax',
+        'vendor_address',
+        'vendor_city',
+        'vendor_state',
+        'vendor_zip',
+        'vendor_country',
+        'vendor_contact_name',
+        'vendor_contact_email',
+        'vendor_contact_phone',
+        'vendor_account_number',
+        
+        // Audit fields that may contain names
+        'updated_by',
+        'created_by',
+        'deleted_by',
+        'assigned_to_name',
+        'assigned_to_email',
+        
+        // Security credentials
+        'password',
+        'password_hash',
+        'secret',
+        'api_key',
+        'access_token',
+        'refresh_token',
+        'private_key',
+        'public_key',
+        'certificate_pem',
+        'ssh_key',
+        
+        // Document content
+        'document_content',
+        'document_body',
+        'file_content',
+        
+        // Notes and descriptions (may contain PII)
+        'notes',
+        'description',
+        'comments',
+        'remarks',
+        
+        // Financial details (potential PII)
+        'credit_card_number',
+        'credit_card_cvv',
+        'credit_card_expiry',
+        'bank_account_number',
+        'bank_routing_number',
+        'iban',
+        'swift_code',
+    ];
+    
+    // Recursively sanitize the data
+    return _sanitizeRecursive($data, $pii_patterns);
+}
+
+/**
+ * Recursive helper function to sanitize data
+ *
+ * @param mixed $data The data to sanitize
+ * @param array $pii_patterns List of PII field patterns
+ * @return mixed The sanitized data
+ */
+function _sanitizeRecursive($data, $pii_patterns)
+{
+    if (!is_array($data)) {
+        return $data;
+    }
+    
+    $sanitized = [];
+    
+    foreach ($data as $key => $value) {
+        // Check if this key matches a PII pattern
+        $is_pii = false;
+        
+        // Exact match
+        if (in_array($key, $pii_patterns)) {
+            $is_pii = true;
+        }
+        
+        // Pattern match (e.g., ends with _email, _phone, _name)
+        foreach ($pii_patterns as $pattern) {
+            // Check for suffixes like _email, _phone, _name
+            if (preg_match('/_(email|phone|mobile|fax|address|city|state|zip|country|name|first_name|last_name|display_name|avatar|avatar_url|avatar_file|notes|description|comments|remarks|password|secret|key|token|hash|content|body|number|account_number|tax_id|ssn|cvv|expiry|iban|swift)$/', $key)) {
+                // But preserve *_id fields
+                if (!preg_match('/_id$/', $key)) {
+                    $is_pii = true;
+                    break;
+                }
+            }
+        }
+        
+        // Skip PII fields
+        if ($is_pii) {
+            continue;
+        }
+        
+        // Recursively sanitize nested arrays
+        if (is_array($value)) {
+            $sanitized[$key] = _sanitizeRecursive($value, $pii_patterns);
+        } else {
+            $sanitized[$key] = $value;
+        }
+    }
+    
+    return $sanitized;
 }
 
 /**
@@ -85,13 +252,14 @@ function sendWebhook($webhook, $event_type, $data, $retry_count = 1)
 
     // Build payload
     $payload = [
+        'id' => uniqid('evt_', true),
         'event' => $event_type,
-        'timestamp' => date('c'),
+        'created' => time(),
         'webhook_id' => $webhook_id,
         'data' => $data
     ];
 
-    $payload_json = json_encode($payload);
+    $payload_json = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
     // Generate HMAC signature
     $signature = generateWebhookSignature($payload_json, $secret);
@@ -109,8 +277,8 @@ function sendWebhook($webhook, $event_type, $data, $retry_count = 1)
             'Content-Type: application/json',
             'X-Webhook-Signature: ' . $signature,
             'X-Webhook-Event: ' . $event_type,
-            'X-Webhook-Delivery: ' . uniqid('wh_', true),
-            'User-Agent: ITFlow-Webhook/1.0'
+            'X-Webhook-Delivery: ' . $payload['id'],
+            'User-Agent: ITFlow-Webhook/1.1'
         ]
     ]);
 
