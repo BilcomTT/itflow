@@ -6,9 +6,10 @@ $session_user_id = intval($_SESSION['user_id']);
 
 $sql = mysqli_query(
     $mysqli,
-    "SELECT * FROM users
+    "SELECT users.*, companies.company_name FROM users
      LEFT JOIN user_settings ON users.user_id = user_settings.user_id
      LEFT JOIN user_roles ON user_role_id = role_id
+     LEFT JOIN companies ON users.user_id = companies.company_id
      WHERE users.user_id = $session_user_id"
 );
 
@@ -25,6 +26,9 @@ $session_is_admin = isset($row['role_is_admin']) && $row['role_is_admin'] == 1;
 $session_user_config_force_mfa = intval($row['user_config_force_mfa']);
 $user_config_records_per_page = intval($row['user_config_records_per_page']);
 $user_config_theme_dark = intval($row['user_config_theme_dark']);
+
+// Load company name for use in ticket operations
+$session_company_name = sanitizeInput($row['company_name']);
 
 if ($session_user_type !== 1) {
     session_unset();
