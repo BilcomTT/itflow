@@ -61,11 +61,11 @@ function triggerWebhook($event_type, $data, $client_id = 0)
             continue;
         }
 
-        // Sanitize data for GDPR/SOC2 compliance
-        $sanitized_data = sanitizeWebhookPayload($data);
+        // Filter payload for Least Privilege and Minimalist standards
+        $filtered_data = filterMinimalistPayload($data, $event_type);
         
         // Send the webhook
-        sendWebhook($webhook, $event_type, $sanitized_data);
+        sendWebhook($webhook, $event_type, $filtered_data);
     }
 }
 
@@ -234,6 +234,107 @@ function _sanitizeRecursive($data, $pii_patterns)
 }
 
 /**
+ * Filter webhook payload for Least Privilege and Minimalist standards
+ *
+ * Removes data noise, empty values, and internal execution parameters.
+ * Focuses on delta changes and ensures payload size is minimal.
+ *
+ * @param array $data The data to filter
+ * @param string $event_type The event type
+ * @return array The filtered minimalist data
+ */
+function filterMinimalistPayload($data, $event_type = '')
+{
+    // Internal execution parameters to remove
+    $internal_params = [
+        'webhookUrl',
+        'webhook_url',
+        'executionMode',
+        'execution_mode',
+        'webhook_id',
+        'webhook_name',
+        'webhook_secret',
+        'webhook_enabled',
+        'webhook_event_types',
+        'webhook_client_id',
+        'webhook_tag_id',
+        'webhook_rate_limit',
+        'webhook_max_retries',
+        'webhook_queuing_enabled',
+        'webhook_created_at',
+        'webhook_updated_at',
+        'webhook_log_id',
+        'webhook_log_webhook_id',
+        'webhook_log_event_type',
+        'webhook_log_payload',
+        'webhook_log_response_code',
+        'webhook_log_response_body',
+        'webhook_log_status',
+        'webhook_log_attempt_count',
+        'webhook_log_created_at',
+        'webhook_log_next_retry_at',
+        'delivery_id',
+        'delivery',
+        'evt_id',
+        'event_id',
+        'test',
+        'message',
+        'timestamp',
+        'created',
+        'updated',
+    ];
+    
+    $filtered = [];
+    
+    foreach ($data as $key => $value) {
+        // Skip internal execution parameters
+        if (in_array($key, $internal_params)) {
+            continue;
+        }
+        
+        // Skip empty strings
+        if (is_string($value) && trim($value) === '') {
+            continue;
+        }
+        
+        // Skip null values
+        if ($value === null) {
+            continue;
+        }
+        
+        // Keep *_id fields and non-zero numeric values
+        // For non-ID fields, skip default zeros
+        if ($value === 0 && !preg_match('/_id$/', $key)) {
+            // Check if this zero is meaningful (like priority=0)
+            $meaningful_zero_fields = [
+                'priority', 'status', 'count', 'amount', 'balance', 'total',
+                'quantity', 'qty', 'level', 'index', 'position', 'order',
+                'rank', 'score', 'weight', 'height', 'width', 'depth'
+            ];
+            $is_meaningful = false;
+            foreach ($meaningful_zero_fields as $field) {
+                if (strpos($key, $field) !== false) {
+                    $is_meaningful = true;
+                    break;
+                }
+            }
+            if (!$is_meaningful) {
+                continue;
+            }
+        }
+        
+        // Recursively filter nested arrays
+        if (is_array($value)) {
+            $filtered[$key] = filterMinimalistPayload($value, $event_type);
+        } else {
+            $filtered[$key] = $value;
+        }
+    }
+    
+    return $filtered;
+}
+
+/**
  * Send a webhook to the configured endpoint
  * 
  * @param array $webhook The webhook configuration from database
@@ -250,23 +351,24 @@ function sendWebhook($webhook, $event_type, $data, $retry_count = 1)
     $url = $webhook['webhook_url'];
     $secret = $webhook['webhook_secret'];
 
-    // Build payload
+    // Build minimalist payload (~400 Bytes target)
+    $delivery_id = uniqid('wh_', true);
+    $timestamp = time();
     $payload = [
-        'id' => uniqid('evt_', true),
-        'event' => $event_type,
-        'created' => time(),
-        'webhook_id' => $webhook_id,
+        'timestamp' => $timestamp,
         'data' => $data
     ];
 
     $payload_json = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
-    // Generate HMAC signature
-    $signature = generateWebhookSignature($payload_json, $secret);
+    // Generate v1 HMAC signature that signs both request body and headers
+    $signature_string = $payload_json . $event_type . $delivery_id . $timestamp;
+    $signature = hash_hmac('sha256', $signature_string, $secret);
 
     // Initialize cURL
     $ch = curl_init($url);
 
+    // Build headers with full HTTP header support
     curl_setopt_array($ch, [
         CURLOPT_POST => true,
         CURLOPT_POSTFIELDS => $payload_json,
@@ -275,11 +377,15 @@ function sendWebhook($webhook, $event_type, $data, $retry_count = 1)
         CURLOPT_CONNECTTIMEOUT => 10,
         CURLOPT_HTTPHEADER => [
             'Content-Type: application/json',
-            'X-Webhook-Signature: ' . $signature,
+            'User-Agent: ITFlow-Webhook/1.1',
             'X-Webhook-Event: ' . $event_type,
-            'X-Webhook-Delivery: ' . $payload['id'],
-            'User-Agent: ITFlow-Webhook/1.1'
-        ]
+            'X-Webhook-Delivery: ' . $delivery_id,
+            'X-Webhook-Timestamp: ' . $timestamp,
+            'X-Webhook-Signature: v1=' . $signature,
+        ],
+        CURLOPT_PROTOCOLS => CURLPROTO_HTTPS | CURLPROTO_HTTP,
+        // Prevent proxy headers from being sent
+        CURLOPT_PROXYHEADER => [],
     ]);
 
     // Execute request
