@@ -181,7 +181,7 @@ elseif ($rate >= 50) { $health_color = 'bg-warning'; }
 </div>
 
 <div class="modal-footer bg-white border-top py-2">
-    <a href="post.php?clear_webhook_logs=<?php echo $webhook_id; ?>&csrf_token=<?php echo $_SESSION['csrf_token']; ?>" class="btn btn-sm btn-outline-danger confirm-link"><i class="fas fa-trash mr-1"></i>Clear</a>
+    <a href="post/webhook.php?clear_webhook_logs=<?php echo $webhook_id; ?>&csrf_token=<?php echo $_SESSION['csrf_token']; ?>" class="btn btn-sm btn-outline-danger confirm-link"><i class="fas fa-trash mr-1"></i>Clear</a>
     <button type="button" class="btn btn-secondary btn-sm px-4" data-dismiss="modal">Close</button>
 </div>
 
