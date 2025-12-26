@@ -206,7 +206,7 @@ $event_types = getWebhookEventTypes();
                     <span class="input-group-text"><i class="fa fa-fw fa-key"></i></span>
                 </div>
                 <input type="text" class="form-control" name="secret" id="webhookSecret"
-                    placeholder="Click generate or leave blank for auto-generation">
+                    placeholder="Click generate for a 64-character hex secret or leave blank for auto-generation">
                 <div class="input-group-append">
                     <button type="button" class="btn btn-warning" onclick="generateSecret()"
                         title="Generate new secret">
@@ -217,7 +217,7 @@ $event_types = getWebhookEventTypes();
                     </button>
                 </div>
             </div>
-            <small class="form-text text-muted">Used to sign webhook payloads. Leave blank to auto-generate.</small>
+            <small class="form-text text-muted">Used to sign webhook payloads. Format: 64-character hex string. Leave blank to auto-generate.</small>
         </div>
 
         <div class="form-group">
@@ -238,10 +238,14 @@ $event_types = getWebhookEventTypes();
 
 <script>
     function generateSecret() {
-        const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        // Generate 32 random bytes and convert to hex (64 characters)
+        // This matches the PHP generateWebhookSecret() function: bin2hex(random_bytes(32))
+        const array = new Uint8Array(32);
+        window.crypto.getRandomValues(array);
         let retVal = "";
-        for (let i = 0, n = charset.length; i < 32; ++i) {
-            retVal += charset.charAt(Math.floor(Math.random() * n));
+        for (let i = 0; i < array.length; i++) {
+            // Convert each byte to 2-character hex string
+            retVal += (array[i] < 16 ? '0' : '') + array[i].toString(16);
         }
         document.getElementById("webhookSecret").value = retVal;
     }

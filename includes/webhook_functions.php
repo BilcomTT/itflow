@@ -138,7 +138,6 @@ function sanitizeWebhookPayload($data)
         'vendor_account_number',
         
         // Audit fields that may contain names
-        'updated_by',
         'created_by',
         'deleted_by',
         'assigned_to_name',
@@ -178,7 +177,15 @@ function sanitizeWebhookPayload($data)
     ];
     
     // Recursively sanitize the data
-    return _sanitizeRecursive($data, $pii_patterns);
+    $sanitized_data = _sanitizeRecursive($data, $pii_patterns);
+
+    // Replace updated_by with user_id in the payload
+    if (isset($sanitized_data['updated_by'])) {
+        $sanitized_data['user_id'] = $sanitized_data['updated_by'];
+        unset($sanitized_data['updated_by']);
+    }
+
+    return $sanitized_data;
 }
 
 /**
@@ -361,8 +368,9 @@ function sendWebhook($webhook, $event_type, $data, $retry_count = 1)
 
     $payload_json = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
-    // Generate v1 HMAC signature that signs both request body and headers
-    $signature_string = $payload_json . $event_type . $delivery_id . $timestamp;
+    // Generate HMAC signature
+    // Replay protection is handled separately via X-Webhook-Timestamp and X-Webhook-Delivery headers
+    $signature_string = $timestamp . $payload_json;
     $signature = hash_hmac('sha256', $signature_string, $secret);
 
     // Initialize cURL
@@ -381,7 +389,7 @@ function sendWebhook($webhook, $event_type, $data, $retry_count = 1)
             'X-Webhook-Event: ' . $event_type,
             'X-Webhook-Delivery: ' . $delivery_id,
             'X-Webhook-Timestamp: ' . $timestamp,
-            'X-Webhook-Signature: v1=' . $signature,
+            'X-Webhook-Signature: ' . $signature,
         ],
         CURLOPT_PROTOCOLS => CURLPROTO_HTTPS | CURLPROTO_HTTP,
         // Prevent proxy headers from being sent
@@ -425,18 +433,6 @@ function sendWebhook($webhook, $event_type, $data, $retry_count = 1)
     }
 
     return $success;
-}
-
-/**
- * Generate HMAC-SHA256 signature for webhook payload
- * 
- * @param string $payload The JSON payload
- * @param string $secret The webhook secret
- * @return string The HMAC signature
- */
-function generateWebhookSignature($payload, $secret)
-{
-    return hash_hmac('sha256', $payload, $secret);
 }
 
 /**

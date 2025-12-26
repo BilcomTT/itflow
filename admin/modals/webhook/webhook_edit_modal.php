@@ -86,8 +86,7 @@ $event_types = getWebhookEventTypes();
                     </a>
                 </div>
             </div>
-            <small class="form-text text-muted">Used to sign webhook payloads. Regenerating will invalidate
-                the old secret.</small>
+            <small class="form-text text-muted">Used to sign webhook payloads. Format: 64-character hex string. Regenerating will invalidate the old secret.</small>
         </div>
 
         <div class="form-group">
