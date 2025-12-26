@@ -145,7 +145,7 @@ $event_types = getWebhookEventTypes();
                         <input type="radio" name="event_view" id="view_advanced" autocomplete="off"> Advanced
                     </label>
                 </div>
-                <small class="text-muted ml-2">Basic: Tier 1 & 2 only. Advanced: All Tiers.</small>
+                <small class="text-muted ml-2">Basic: Tier 1 & 2 only. Advanced: All Tiers (1-3).</small>
             </div>
 
             <div class="card">
@@ -161,15 +161,14 @@ $event_types = getWebhookEventTypes();
 
                     <hr>
 
-                    <?php 
+                    <?php
                     $tier_map = [
                         'Tier 1: Revenue & Client Lifecycle' => 1,
                         'Tier 2: Service Delivery & SLA' => 2,
-                        'Tier 3: Business Operations' => 3,
-                        'Tier 4: Automation & Integration' => 4
+                        'Tier 3: Business Operations' => 3
                     ];
-                    foreach ($event_types as $category => $events): 
-                        $tier = $tier_map[$category] ?? 4;
+                    foreach ($event_types as $category => $events):
+                        $tier = $tier_map[$category] ?? 3;
                         $display_class = ($tier > 2) ? 'advanced-tier' : 'basic-tier';
                         $style = ($tier > 2) ? 'display:none;' : '';
                     ?>

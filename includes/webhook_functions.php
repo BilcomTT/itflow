@@ -830,7 +830,6 @@ function getWebhookEventTypes()
             'invoice.created' => 'Invoice Created',
             'invoice.sent' => 'Invoice Sent',
             'invoice.paid' => 'Invoice Paid',
-            'invoice.overdue' => 'Invoice Overdue',
             'payment.received' => 'Payment Received',
             'quote.viewed' => 'Quote Viewed',
             'quote.sent' => 'Quote Sent',
@@ -838,7 +837,6 @@ function getWebhookEventTypes()
             'quote.declined' => 'Quote Declined',
             'quote.updated' => 'Quote Updated',
             'client.created' => 'Client Created',
-            'client.status_changed' => 'Client Status Changed',
             'client.updated' => 'Client Updated',
             'client.archived' => 'Client Archived',
             'client.deleted' => 'Client Deleted'
@@ -850,7 +848,6 @@ function getWebhookEventTypes()
             'ticket.assigned' => 'Ticket Assigned',
             'ticket.resolved' => 'Ticket Resolved',
             'ticket.closed' => 'Ticket Closed',
-            'ticket.reopened' => 'Ticket Reopened',
             'ticket.replied' => 'Ticket Replied',
             'ticket.deleted' => 'Ticket Deleted'
         ],
@@ -864,12 +861,10 @@ function getWebhookEventTypes()
             'asset.archived' => 'Asset Archived',
             'asset.deleted' => 'Asset Deleted',
             'asset.assigned' => 'Asset Assigned',
-            'asset.warranty_expiring' => 'Asset Warranty Expiring',
             'document.created' => 'Document Created',
             'document.updated' => 'Document Updated',
             'document.archived' => 'Document Archived',
             'document.deleted' => 'Document Deleted',
-            'login.created' => 'Credential/Login Created',
             'password.created' => 'Password Created',
             'password.updated' => 'Password Updated',
             'password.deleted' => 'Password Deleted',
@@ -881,12 +876,7 @@ function getWebhookEventTypes()
             'certificate.created' => 'Certificate Created',
             'certificate.updated' => 'Certificate Updated',
             'certificate.archived' => 'Certificate Archived',
-            'certificate.deleted' => 'Certificate Deleted',
-            'vendor.created' => 'Vendor Created'
+            'certificate.deleted' => 'Certificate Deleted'
         ],
-        'Tier 4: Automation & Integration' => [
-            'expense.created' => 'Expense Created',
-            'trip.logged' => 'Trip Logged'
-        ]
     ];
 }
