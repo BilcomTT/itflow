@@ -61,8 +61,11 @@ function triggerWebhook($event_type, $data, $client_id = 0)
             continue;
         }
 
-        // Filter payload for Least Privilege and Minimalist standards
-        $filtered_data = filterMinimalistPayload($data, $event_type);
+        // First sanitize the payload to remove PII and sensitive data
+        $sanitized_data = sanitizeWebhookPayload($data);
+        
+        // Then filter for Least Privilege and Minimalist standards
+        $filtered_data = filterMinimalistPayload($sanitized_data, $event_type);
         
         // Send the webhook
         sendWebhook($webhook, $event_type, $filtered_data);
@@ -174,16 +177,16 @@ function sanitizeWebhookPayload($data)
         'bank_routing_number',
         'iban',
         'swift_code',
+
+        // Other common PII fields
+        'asset_type',
     ];
     
     // Recursively sanitize the data
     $sanitized_data = _sanitizeRecursive($data, $pii_patterns);
 
-    // Replace updated_by with user_id in the payload
-    if (isset($sanitized_data['updated_by'])) {
-        $sanitized_data['user_id'] = $sanitized_data['updated_by'];
-        unset($sanitized_data['updated_by']);
-    }
+    // Process audit fields in the sanitized data (including nested arrays)
+    $sanitized_data = _processAuditFields($sanitized_data);
 
     return $sanitized_data;
 }
@@ -224,6 +227,9 @@ function _sanitizeRecursive($data, $pii_patterns)
             }
         }
         
+        // Note: Audit fields like updated_by, created_by are handled in sanitizeWebhookPayload()
+        // Don't mark them as PII here so they can be processed and converted to user_id
+        
         // Skip PII fields
         if ($is_pii) {
             continue;
@@ -238,6 +244,125 @@ function _sanitizeRecursive($data, $pii_patterns)
     }
     
     return $sanitized;
+}
+
+/**
+ * Process audit fields to convert user names to user_id
+ *
+ * This function recursively processes audit fields like updated_by, created_by, etc.
+ * to convert them from user names to user_id for security.
+ *
+ * @param mixed $data The data to process
+ * @return mixed The processed data
+ */
+function _processAuditFields($data)
+{
+    if (!is_array($data)) {
+        return $data;
+    }
+    
+    $processed = [];
+    $user_id_found = false;
+    
+    // List of audit fields to process
+    $audit_fields = [
+        'updated_by',
+        'created_by',
+        'deleted_by',
+        'assigned_by',
+        'modified_by',
+        'logged_by',
+        'entered_by',
+        'recorded_by'
+    ];
+    
+    foreach ($data as $key => $value) {
+        // Check if this is an audit field
+        if (in_array($key, $audit_fields)) {
+            // If it's a user ID (numeric), keep it but rename to user_id
+            if (is_numeric($value)) {
+                $processed['user_id'] = intval($value);
+                $user_id_found = true;
+            }
+            // If it's a username (string), try to get the user ID from the database
+            elseif (is_string($value) && !empty($value)) {
+                $user_id = _getUserIdFromName($value);
+                if ($user_id > 0) {
+                    $processed['user_id'] = $user_id;
+                    $user_id_found = true;
+                }
+            }
+            // Don't include the original field that might contain user names
+            continue;
+        }
+        
+        // Recursively process nested arrays
+        if (is_array($value)) {
+            $nested_result = _processAuditFields($value);
+            // If the nested array had a user_id, preserve it
+            if (is_array($nested_result) && isset($nested_result['user_id']) && !$user_id_found) {
+                $processed['user_id'] = $nested_result['user_id'];
+                $user_id_found = true;
+                unset($nested_result['user_id']);
+            }
+            $processed[$key] = $nested_result;
+        } else {
+            $processed[$key] = $value;
+        }
+    }
+    
+    return $processed;
+}
+
+/**
+ * Get user ID from username
+ *
+ * @param string $username The username to look up
+ * @return int The user ID or 0 if not found
+ */
+function _getUserIdFromName($username)
+{
+    global $mysqli;
+    
+    // Clean the username
+    $username = trim($username);
+    if (empty($username)) {
+        return 0;
+    }
+    
+    // Try to find the user by name
+    $username_escaped = mysqli_real_escape_string($mysqli, $username);
+    $result = mysqli_query($mysqli, "SELECT user_id FROM users WHERE user_name = '$username_escaped' LIMIT 1");
+    
+    if ($result && mysqli_num_rows($result) > 0) {
+        $row = mysqli_fetch_assoc($result);
+        return intval($row['user_id']);
+    }
+    
+    // If not found by user_name, try user_display_name
+    $result = mysqli_query($mysqli, "SELECT user_id FROM users WHERE user_display_name = '$username_escaped' LIMIT 1");
+    
+    if ($result && mysqli_num_rows($result) > 0) {
+        $row = mysqli_fetch_assoc($result);
+        return intval($row['user_id']);
+    }
+    
+    // If still not found, try to match by first and last name
+    $name_parts = explode(' ', $username, 2);
+    if (count($name_parts) >= 2) {
+        $first_name = mysqli_real_escape_string($mysqli, trim($name_parts[0]));
+        $last_name = mysqli_real_escape_string($mysqli, trim($name_parts[1]));
+        
+        $result = mysqli_query($mysqli, "SELECT user_id FROM users WHERE user_first_name = '$first_name' AND user_last_name = '$last_name' LIMIT 1");
+        
+        if ($result && mysqli_num_rows($result) > 0) {
+            $row = mysqli_fetch_assoc($result);
+            return intval($row['user_id']);
+        }
+    }
+    
+    // If we can't find the user, return 0
+    return 0;
 }
 
 /**
@@ -286,7 +411,6 @@ function filterMinimalistPayload($data, $event_type = '')
         'event_id',
         'test',
         'message',
-        'timestamp',
         'created',
         'updated',
     ];
@@ -296,6 +420,12 @@ function filterMinimalistPayload($data, $event_type = '')
     foreach ($data as $key => $value) {
         // Skip internal execution parameters
         if (in_array($key, $internal_params)) {
+            continue;
+        }
+        
+        // Always preserve event_type field
+        if ($key === 'event_type') {
+            $filtered[$key] = $value;
             continue;
         }
         
@@ -363,6 +493,7 @@ function sendWebhook($webhook, $event_type, $data, $retry_count = 1)
     $timestamp = time();
     $payload = [
         'timestamp' => $timestamp,
+        'event_type' => $event_type,
         'data' => $data
     ];
 
