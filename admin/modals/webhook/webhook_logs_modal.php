@@ -1,5 +1,6 @@
 <?php
 require_once "../../../includes/modal_header.php";
+require_once "../../../includes/inc_set_timezone.php";
 ob_start();
 
 $webhook_id = intval($_GET['webhook_id']);
@@ -82,12 +83,11 @@ elseif ($rate >= 50) { $health_color = 'bg-warning'; }
     }
 </style>
 
-<div class="modal-header bg-white border-bottom py-2">
-    <h5 class="modal-title d-flex align-items-center">
-        <i class="fas fa-fw fa-plug mr-2 text-primary"></i>
-        <span class="font-weight-bold"><?php echo $webhook_name; ?></span>
-    </h5>
-    <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
+<div class="modal-header bg-dark">
+    <h5 class="modal-title"><i class="fas fa-fw fa-plug mr-2"></i><?php echo $webhook_name; ?></h5>
+    <button type="button" class="close text-white" data-dismiss="modal">
+        <span>&times;</span>
+    </button>
 </div>
 
 <div class="modal-body bg-light pt-3">
@@ -180,9 +180,9 @@ elseif ($rate >= 50) { $health_color = 'bg-warning'; }
     </div>
 </div>
 
-<div class="modal-footer bg-white border-top py-2">
-    <a href="post.php?clear_webhook_logs=<?php echo $webhook_id; ?>&csrf_token=<?php echo $_SESSION['csrf_token']; ?>" class="btn btn-sm btn-outline-danger confirm-link"><i class="fas fa-trash mr-1"></i>Clear</a>
-    <button type="button" class="btn btn-secondary btn-sm px-4" data-dismiss="modal">Close</button>
+<div class="modal-footer">
+    <a href="post.php?clear_webhook_logs=<?php echo $webhook_id; ?>&csrf_token=<?php echo $_SESSION['csrf_token']; ?>" class="btn btn-outline-danger confirm-link"><i class="fas fa-trash mr-2"></i>Clear</a>
+    <button type="button" class="btn btn-light" data-dismiss="modal"><i class="fas fa-times mr-2"></i>Cancel</button>
 </div>
 
 <script>
