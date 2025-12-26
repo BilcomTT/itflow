@@ -521,6 +521,7 @@ function sendWebhook($webhook, $event_type, $data, $retry_count = 1)
             'X-Webhook-Delivery: ' . $delivery_id,
             'X-Webhook-Timestamp: ' . $timestamp,
             'X-Webhook-Signature: ' . $signature,
+            'X-Webhook-ID: ' . $webhook_id,
         ],
         CURLOPT_PROTOCOLS => CURLPROTO_HTTPS | CURLPROTO_HTTP,
         // Prevent proxy headers from being sent
@@ -851,11 +852,7 @@ function getWebhookEventTypes()
             'ticket.closed' => 'Ticket Closed',
             'ticket.reopened' => 'Ticket Reopened',
             'ticket.replied' => 'Ticket Replied',
-            'ticket.scheduled' => 'Ticket Scheduled',
-            'ticket.unscheduled' => 'Ticket Unscheduled',
-            'ticket.deleted' => 'Ticket Deleted',
-            'ticket.sla_breach' => 'Ticket SLA Breach',
-            'ticket.response_overdue' => 'Ticket Response Overdue'
+            'ticket.deleted' => 'Ticket Deleted'
         ],
         'Tier 3: Business Operations' => [
             'contact.created' => 'Contact Created',
@@ -868,7 +865,6 @@ function getWebhookEventTypes()
             'asset.deleted' => 'Asset Deleted',
             'asset.assigned' => 'Asset Assigned',
             'asset.warranty_expiring' => 'Asset Warranty Expiring',
-            'scheduled_ticket.created' => 'Scheduled Ticket Created',
             'document.created' => 'Document Created',
             'document.updated' => 'Document Updated',
             'document.archived' => 'Document Archived',
@@ -889,12 +885,6 @@ function getWebhookEventTypes()
             'vendor.created' => 'Vendor Created'
         ],
         'Tier 4: Automation & Integration' => [
-            'client.note_added' => 'Client Note Added',
-            'service.created' => 'Service Created',
-            'service.renewed' => 'Service Renewed',
-            'service.cancelled' => 'Service Cancelled',
-            'project.created' => 'Project Created',
-            'project.completed' => 'Project Completed',
             'expense.created' => 'Expense Created',
             'trip.logged' => 'Trip Logged'
         ]

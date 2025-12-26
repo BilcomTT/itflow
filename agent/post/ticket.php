@@ -2628,15 +2628,7 @@ if (isset($_POST['edit_ticket_schedule'])) {
 
     logAction("Ticket", "Edit", "$session_name edited ticket schedule", $client_id, $ticket_id);
 
-    // Trigger webhook for ticket scheduled
-    triggerWebhook('recurring_ticket.scheduled', [
-        'ticket_id' => $ticket_id,
-        'ticket_number' => $ticket_prefix . $ticket_number,
-        'scheduled_at' => $schedule,
-        'onsite' => $onsite,
-        'client_id' => $client_id,
-        'updated_by' => $session_name
-    ], $client_id);
+    // Ticket scheduled webhook removed
 
     customAction('ticket_schedule', $ticket_id);
 
@@ -2789,13 +2781,7 @@ if (isset($_GET['cancel_ticket_schedule'])) {
 
     logAction("Ticket", "Edit", "$session_name cancelled ticket schedule", $client_id, $ticket_id);
 
-    // Trigger webhook for ticket unscheduled
-    triggerWebhook('recurring_ticket.unscheduled', [
-        'ticket_id' => $ticket_id,
-        'ticket_number' => $ticket_prefix . $ticket_number,
-        'client_id' => $client_id,
-        'updated_by' => $session_name
-    ], $client_id);
+    // Ticket unscheduled webhook removed
 
     customAction('ticket_unschedule', $ticket_id);
 
